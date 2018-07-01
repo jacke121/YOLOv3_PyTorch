@@ -66,12 +66,14 @@ def evaluate(config):
         images, labels = samples["image"], samples["label"]
         labels = labels.cuda()
         with torch.no_grad():
+            time1=datetime.datetime.now()
             outputs = net(images)
             output_list = []
             for i in range(3):
                 output_list.append(yolo_losses[i](outputs[i]))
             output = torch.cat(output_list, 1)
-            output = non_max_suppression(output, 80, conf_thres=0.5)
+            output = non_max_suppression(output, 1, conf_thres=0.4)
+            print("time",(datetime.datetime.now() - time1).microseconds)
             #  calculate
             for sample_i in range(labels.size(0)):
                 # Get labels for sample where width is not zero (dummies)

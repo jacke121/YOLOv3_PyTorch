@@ -59,7 +59,9 @@ class MyThread(threading.Thread):
       print("data_load ok")
 class COCODataset(Dataset):
     def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=1600):
-        list_path_txt = os.path.join(list_path,'ImageSets\Main/trainval.txt')
+        # list_path_txt = os.path.join(list_path,'ImageSets\Main/trainval.txt')
+        if not is_training:
+            list_path_txt = os.path.join(list_path, 'ImageSets\Main/test.txt')
         with open(list_path_txt, 'r') as file:
         # with open(list_path, 'r') as file:
             self.train_files_ = file.readlines()

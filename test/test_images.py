@@ -33,6 +33,13 @@ colors = [cmap(i) for i in np.linspace(0, 1, 20)]
 
 def test(config):
     is_training = False
+    anchors = [int(x) for x in config["yolo"]["anchors"].split(",")]
+    anchors = [[[anchors[i], anchors[i + 1]], [anchors[i + 2], anchors[i + 3]], [anchors[i + 4], anchors[i + 5]]] for i
+               in range(0, len(anchors), 6)]
+    anchors.reverse()
+    config["yolo"]["anchors"] = []
+    for i in range(3):
+        config["yolo"]["anchors"].append(anchors[i])
     # Load and initialize network
     net = ModelMain(config, is_training=is_training)
     net.train(is_training)
@@ -52,7 +59,7 @@ def test(config):
     # YOLO loss with 3 scales
     yolo_losses = []
     for i in range(3):
-        yolo_losses.append(YOLOLayer(config["yolo"]["anchors"][i],
+        yolo_losses.append(YOLOLayer(config["batch_size"],i,config["yolo"]["anchors"][i],
                                      config["yolo"]["classes"], (config["img_w"], config["img_h"])))
 
     # prepare images path
@@ -116,27 +123,27 @@ def test(config):
                     y1 = (y1 / pre_h) * ori_h
                     x1 = (x1 / pre_w) * ori_w
                     # Create a Rectangle patch
-                    bbox = patches.Rectangle((x1, y1), box_w, box_h, linewidth=2,
+                    bbox = patches.Rectangle((x1, y1), box_w, box_h, linewidth=1,
                                              edgecolor=color,
                                              facecolor='none')
                     # Add the bbox to the plot
                     ax.add_patch(bbox)
                     # Add label
-                    plt.text(x1, y1, s=classes[int(cls_pred)], color='white',
-                             verticalalignment='top',
-                             bbox={'color': color, 'pad': 0})
+                    # plt.text(x1, y1, s=classes[int(cls_pred)], color='white',
+                    #          verticalalignment='top',
+                    #          bbox={'color': color, 'pad': 0})
             # Save generated image with detections
             plt.axis('off')
             plt.gca().xaxis.set_major_locator(NullLocator())
             plt.gca().yaxis.set_major_locator(NullLocator())
+            plt.show()
             plt.savefig('output/{}_{}.jpg'.format(step, idx), bbox_inches='tight', pad_inches=0.0)
-            plt.close()
+            # plt.close()
     logging.info("Save all results to ./output/")
 
 if __name__ == "__main__":
     os.makedirs('output', exist_ok=True)
-    logging.basicConfig(level=logging.DEBUG,
-                        format="[%(asctime)s %(filename)s] %(message)s")
+    logging.basicConfig(level=logging.DEBUG,format="[%(asctime)s %(filename)s] %(message)s")
 
     params_path =r"params.py"
     if not os.path.isfile(params_path):
