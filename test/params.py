@@ -30,7 +30,7 @@ TRAINING_PARAMS = \
         "anchors": "13,18, 19,31, 23,55, 26,80, 37,67, 40,50, 45,36, 69,206, 81,122",
         "classes": 1,
     },
-    "batch_size": 16,
+    "batch_size": 1,
     "confidence_threshold": 0.5,
     "classes_names_path": "../data/coco2cls.names",
     "iou_thres": 0.5,
