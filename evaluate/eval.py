@@ -16,13 +16,20 @@ import torch.nn as nn
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 from nets.model_main import ModelMain
-from nets.yolo_loss import YOLOLoss
+from nets.yolo_loss import YOLOLayer
 from common.coco_dataset import COCODataset
 from common.utils import non_max_suppression, bbox_iou
 
 
 def evaluate(config):
     is_training = False
+    anchors = [int(x) for x in config["yolo"]["anchors"].split(",")]
+    anchors = [[[anchors[i], anchors[i + 1]], [anchors[i + 2], anchors[i + 3]], [anchors[i + 4], anchors[i + 5]]] for i
+               in range(0, len(anchors), 6)]
+    anchors.reverse()
+    config["yolo"]["anchors"] = []
+    for i in range(3):
+        config["yolo"]["anchors"].append(anchors[i])
     # Load and initialize network
     net = ModelMain(config, is_training=is_training)
     net.train(is_training)
@@ -41,15 +48,15 @@ def evaluate(config):
     # YOLO loss with 3 scales
     yolo_losses = []
     for i in range(3):
-        yolo_losses.append(YOLOLoss(config["yolo"]["anchors"][i],
-                                    config["yolo"]["classes"], (config["img_w"], config["img_h"])))
+        yolo_losses.append(YOLOLayer(config["batch_size"],i,config["yolo"]["anchors"][i],
+                                     config["yolo"]["classes"], (config["img_w"], config["img_h"])))
 
     # DataLoader
     dataloader = torch.utils.data.DataLoader(COCODataset(config["val_path"],
                                                          (config["img_w"], config["img_h"]),
                                                          is_training=False),
                                              batch_size=config["batch_size"],
-                                             shuffle=False, num_workers=16, pin_memory=False)
+                                             shuffle=False, num_workers=0, pin_memory=False)
 
     # Start the eval loop
     logging.info("Start eval.")
@@ -64,7 +71,7 @@ def evaluate(config):
             for i in range(3):
                 output_list.append(yolo_losses[i](outputs[i]))
             output = torch.cat(output_list, 1)
-            output = non_max_suppression(output, 80, conf_thres=0.2)
+            output = non_max_suppression(output, 80, conf_thres=0.5)
             #  calculate
             for sample_i in range(labels.size(0)):
                 # Get labels for sample where width is not zero (dummies)
@@ -93,10 +100,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(asctime)s %(filename)s] %(message)s")
 
-    if len(sys.argv) != 2:
-        logging.error("Usage: python eval.py params.py")
-        sys.exit()
-    params_path = sys.argv[1]
+    params_path = 'params.py'
     if not os.path.isfile(params_path):
         logging.error("no params file found! path: {}".format(params_path))
         sys.exit()

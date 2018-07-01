@@ -14,20 +14,28 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 # sys.path.insert(0, os.path.join(MY_DIRNAME, '..', 'evaluate'))
 from nets.model_main import ModelMain
-from nets.yolo_loss import YOLOLoss
+from nets.yolo_loss import YOLOLayer
 from common.coco_dataset import COCODataset
 
-
+checkpoint_dir="checkpoints"
+os.makedirs('checkpoints', exist_ok=True)
 def train(config):
     config["global_step"] = config.get("start_step", 0)
     is_training = False if config.get("export_onnx") else True
 
+    anchors = [int(x) for x in config["yolo"]["anchors"].split(",")]
+    anchors = [[[anchors[i], anchors[i + 1]], [anchors[i + 2], anchors[i + 3]], [anchors[i + 4], anchors[i + 5]]] for i
+               in range(0, len(anchors), 6)]
+    anchors.reverse()
+    config["yolo"]["anchors"] = []
+    for i in range(3):
+        config["yolo"]["anchors"].append(anchors[i])
     # Load and initialize network
     net = ModelMain(config, is_training=is_training)
     net.train(is_training)
@@ -69,19 +77,20 @@ def train(config):
     # YOLO loss with 3 scales
     yolo_losses = []
     for i in range(3):
-        yolo_losses.append(YOLOLoss(config["yolo"]["anchors"][i],
-                                    config["yolo"]["classes"], (config["img_w"], config["img_h"])))
+        yolo_losses.append(YOLOLayer(config["batch_size"],i,config["yolo"]["anchors"][i],
+                                     config["yolo"]["classes"], (config["img_w"], config["img_h"])))
 
     # DataLoader
     dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
                                                          (config["img_w"], config["img_h"]),
                                                          is_training=True),
                                              batch_size=config["batch_size"],
-                                             shuffle=True, num_workers=32, pin_memory=True)
+                                             shuffle=True,drop_last=True, num_workers=0, pin_memory=True)
 
     # Start the training loop
     logging.info("Start training.")
     for epoch in range(config["epochs"]):
+        recall = 0
         for step, samples in enumerate(dataloader):
             images, labels = samples["image"], samples["label"]
             start_time = time.time()
@@ -90,66 +99,52 @@ def train(config):
             # Forward and backward
             optimizer.zero_grad()
             outputs = net(images)
-            losses_name = ["total_loss", "x", "y", "w", "h", "conf", "cls"]
-            losses = [[]] * len(losses_name)
+            losses_name = ["total_loss", "x", "y", "w", "h", "conf", "cls","recall"]
+            losses = [0] * len(losses_name)
             for i in range(3):
                 _loss_item = yolo_losses[i](outputs[i], labels)
                 for j, l in enumerate(_loss_item):
-                    losses[j].append(l)
-            losses = [sum(l) for l in losses]
+                    losses[j]+=l
+            # losses = [sum(l) for l in losses]
             loss = losses[0]
             loss.backward()
             optimizer.step()
 
-            if step > 0 and step % 10 == 0:
+            if step > 0 and step % 2 == 0:
                 _loss = loss.item()
                 duration = float(time.time() - start_time)
                 example_per_second = config["batch_size"] / duration
                 lr = optimizer.param_groups[0]['lr']
-                logging.info(
-                    "epoch [%.3d] iter = %d loss = %.2f example/sec = %.3f lr = %.5f "%
-                    (epoch, step, _loss, example_per_second, lr)
-                )
-                config["tensorboard_writer"].add_scalar("lr",
-                                                        lr,
-                                                        config["global_step"])
-                config["tensorboard_writer"].add_scalar("example/sec",
-                                                        example_per_second,
-                                                        config["global_step"])
-                for i, name in enumerate(losses_name):
-                    value = _loss if i == 0 else losses[i]
-                    config["tensorboard_writer"].add_scalar(name,
-                                                            value,
-                                                            config["global_step"])
 
-            if step > 0 and step % 1000 == 0:
-                # net.train(False)
-                _save_checkpoint(net.state_dict(), config)
-                # net.train(True)
+                strftime = datetime.datetime.now().strftime("%H:%M:%S")
+                recall += losses[7]/3
+                print(
+                    '%s [Epoch %d/%d, Batch %03d/%d losses: x %.5f, y %.5f, w %.5f, h %.5f, conf %.5f, cls %.5f, total %.5f, recall: %.3f]' %
+                    (strftime, epoch, config["epochs"], step, len(dataloader),
+                     losses[1], losses[2], losses[3],
+                     losses[4], losses[5], losses[6],
+                     _loss,  losses[7]/3))
+                # logging.info(epoch [%.3d] iter = %d loss = %.2f example/sec = %.3f lr = %.5f "%
+                #     (epoch, step, _loss, example_per_second, lr))
+                # config["tensorboard_writer"].add_scalar("lr",
+                #                                         lr,
+                #                                         config["global_step"])
+                # config["tensorboard_writer"].add_scalar("example/sec",
+                #                                         example_per_second,
+                #                                         config["global_step"])
+                # for i, name in enumerate(losses_name):
+                #     value = _loss if i == 0 else losses[i]
+                #     config["tensorboard_writer"].add_scalar(name,
+                #                                             value,
+                #                                             config["global_step"])
+
+        if (epoch % 2 == 0 ) or recall / len( dataloader) > 0.96:
+            torch.save(net.state_dict(), '%s/%d.weights' % (checkpoint_dir, epoch))
+
 
         lr_scheduler.step()
-
-    # net.train(False)
-    _save_checkpoint(net.state_dict(), config)
     # net.train(True)
-    logging.info("Bye~")
-
-# best_eval_result = 0.0
-def _save_checkpoint(state_dict, config, evaluate_func=None):
-    # global best_eval_result
-    checkpoint_path = os.path.join(config["sub_working_dir"], "model.pth")
-    torch.save(state_dict, checkpoint_path)
-    logging.info("Model checkpoint saved to %s" % checkpoint_path)
-    # eval_result = evaluate_func(config)
-    # if eval_result > best_eval_result:
-        # best_eval_result = eval_result
-        # logging.info("New best result: {}".format(best_eval_result))
-        # best_checkpoint_path = os.path.join(config["sub_working_dir"], 'model_best.pth')
-        # shutil.copyfile(checkpoint_path, best_checkpoint_path)
-        # logging.info("Best checkpoint saved to {}".format(best_checkpoint_path))
-    # else:
-        # logging.info("Best result: {}".format(best_eval_result))
-
+    logging.info("Bye bye")
 
 def _get_optimizer(config, net):
     optimizer = None
@@ -195,10 +190,8 @@ def main():
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(asctime)s %(filename)s] %(message)s")
 
-    if len(sys.argv) != 2:
-        logging.error("Usage: python training.py params.py")
-        sys.exit()
-    params_path = sys.argv[1]
+
+    params_path = 'params.py'
     if not os.path.isfile(params_path):
         logging.error("no params file found! path: {}".format(params_path))
         sys.exit()
@@ -216,8 +209,8 @@ def main():
     logging.info("sub working dir: %s" % sub_working_dir)
 
     # Creat tf_summary writer
-    config["tensorboard_writer"] = SummaryWriter(sub_working_dir)
-    logging.info("Please using 'python -m tensorboard.main --logdir={}'".format(sub_working_dir))
+    # config["tensorboard_writer"] = SummaryWriter(sub_working_dir)
+    # logging.info("Please using 'python -m tensorboard.main --logdir={}'".format(sub_working_dir))
 
     # Start training
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, config["parallels"]))

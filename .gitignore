@@ -4,3 +4,7 @@ __pycache__
 coco
 *.pth
 output
+
+training/YOUR_WORKING_DIR/
+training/checkpoints/
+ .idea/

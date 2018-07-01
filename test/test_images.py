@@ -24,7 +24,7 @@ import torch.nn as nn
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 from nets.model_main import ModelMain
-from nets.yolo_loss import YOLOLoss
+from nets.yolo_loss import YOLOLayer
 from common.utils import non_max_suppression, bbox_iou
 
 cmap = plt.get_cmap('tab20b')
@@ -52,8 +52,8 @@ def test(config):
     # YOLO loss with 3 scales
     yolo_losses = []
     for i in range(3):
-        yolo_losses.append(YOLOLoss(config["yolo"]["anchors"][i],
-                                    config["yolo"]["classes"], (config["img_w"], config["img_h"])))
+        yolo_losses.append(YOLOLayer(config["yolo"]["anchors"][i],
+                                     config["yolo"]["classes"], (config["img_w"], config["img_h"])))
 
     # prepare images path
     images_name = os.listdir(config["images_path"])
@@ -131,17 +131,14 @@ def test(config):
             plt.gca().yaxis.set_major_locator(NullLocator())
             plt.savefig('output/{}_{}.jpg'.format(step, idx), bbox_inches='tight', pad_inches=0.0)
             plt.close()
-    logging.info("Save all results to ./output/")    
+    logging.info("Save all results to ./output/")
 
-
-def main():
+if __name__ == "__main__":
+    os.makedirs('output', exist_ok=True)
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(asctime)s %(filename)s] %(message)s")
 
-    if len(sys.argv) != 2:
-        logging.error("Usage: python test_images.py params.py")
-        sys.exit()
-    params_path = sys.argv[1]
+    params_path =r"params.py"
     if not os.path.isfile(params_path):
         logging.error("no params file found! path: {}".format(params_path))
         sys.exit()
@@ -151,7 +148,3 @@ def main():
     # Start training
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, config["parallels"]))
     test(config)
-
-
-if __name__ == "__main__":
-    main()

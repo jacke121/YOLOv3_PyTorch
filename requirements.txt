@@ -1,6 +1,5 @@
 numpy
 torch>=0.4.0
-torchvision
 pillow
 tensorboardX
 imgaug>=0.2.5
