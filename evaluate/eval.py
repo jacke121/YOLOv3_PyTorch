@@ -11,7 +11,7 @@ import shutil
 
 import torch
 import torch.nn as nn
-
+from torch.utils.data import DataLoader
 
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
@@ -54,47 +54,48 @@ def evaluate(config):
     # DataLoader
     dataloader = torch.utils.data.DataLoader(COCODataset(config["val_path"],
                                                          (config["img_w"], config["img_h"]),
-                                                         is_training=False),
+                                                         is_training=0),
                                              batch_size=config["batch_size"],
-                                             shuffle=False, num_workers=0, pin_memory=False)
+                                             shuffle=False,drop_last=True, num_workers=0, pin_memory=False)
 
     # Start the eval loop
     logging.info("Start eval.")
     n_gt = 0
     correct = 0
-    for step, samples in enumerate(dataloader):
-        images, labels = samples["image"], samples["label"]
-        labels = labels.cuda()
-        with torch.no_grad():
-            time1=datetime.datetime.now()
-            outputs = net(images)
-            output_list = []
-            for i in range(3):
-                output_list.append(yolo_losses[i](outputs[i]))
-            output = torch.cat(output_list, 1)
-            output = non_max_suppression(output, 1, conf_thres=0.4)
-            print("time",(datetime.datetime.now() - time1).microseconds)
-            #  calculate
-            for sample_i in range(labels.size(0)):
-                # Get labels for sample where width is not zero (dummies)
-                target_sample = labels[sample_i, labels[sample_i, :, 3] != 0]
-                for obj_cls, tx, ty, tw, th in target_sample:
-                    # Get rescaled gt coordinates
-                    tx1, tx2 = config["img_w"] * (tx - tw / 2), config["img_w"] * (tx + tw / 2)
-                    ty1, ty2 = config["img_h"] * (ty - th / 2), config["img_h"] * (ty + th / 2)
-                    n_gt += 1
-                    box_gt = torch.cat([coord.unsqueeze(0) for coord in [tx1, ty1, tx2, ty2]]).view(1, -1)
-                    sample_pred = output[sample_i]
-                    if sample_pred is not None:
-                        # Iterate through predictions where the class predicted is same as gt
-                        for x1, y1, x2, y2, conf, obj_conf, obj_pred in sample_pred[sample_pred[:, 6] == obj_cls]:
-                            box_pred = torch.cat([coord.unsqueeze(0) for coord in [x1, y1, x2, y2]]).view(1, -1)
-                            iou = bbox_iou(box_pred, box_gt)
-                            if iou >= config["iou_thres"]:
-                                correct += 1
-                                break
-        if n_gt:
-            logging.info('Batch [%d/%d] mAP: %.5f' % (step, len(dataloader), float(correct / n_gt)))
+    while 1:
+        for step, samples in enumerate(dataloader):
+            images, labels = samples["image"], samples["label"]
+            labels = labels.cuda()
+            with torch.no_grad():
+                time1=datetime.datetime.now()
+                outputs = net(images)
+                output_list = []
+                for i in range(3):
+                    output_list.append(yolo_losses[i](outputs[i]))
+                output = torch.cat(output_list, 1)
+                output = non_max_suppression(output, 1, conf_thres=0.4)
+                print("time",(datetime.datetime.now() - time1).microseconds)
+                #  calculate
+                for sample_i in range(labels.size(0)):
+                    # Get labels for sample where width is not zero (dummies)
+                    target_sample = labels[sample_i, labels[sample_i, :, 3] != 0]
+                    for obj_cls, tx, ty, tw, th in target_sample:
+                        # Get rescaled gt coordinates
+                        tx1, tx2 = config["img_w"] * (tx - tw / 2), config["img_w"] * (tx + tw / 2)
+                        ty1, ty2 = config["img_h"] * (ty - th / 2), config["img_h"] * (ty + th / 2)
+                        n_gt += 1
+                        box_gt = torch.cat([coord.unsqueeze(0) for coord in [tx1, ty1, tx2, ty2]]).view(1, -1)
+                        sample_pred = output[sample_i]
+                        if sample_pred is not None:
+                            # Iterate through predictions where the class predicted is same as gt
+                            for x1, y1, x2, y2, conf, obj_conf, obj_pred in sample_pred[sample_pred[:, 6] == obj_cls]:
+                                box_pred = torch.cat([coord.unsqueeze(0) for coord in [x1, y1, x2, y2]]).view(1, -1)
+                                iou = bbox_iou(box_pred, box_gt)
+                                if iou >= config["iou_thres"]:
+                                    correct += 1
+                                    break
+            if n_gt:
+                logging.info('Batch [%d/%d] mAP: %.5f' % (step, len(dataloader), float(correct / n_gt)))
 
     logging.info('Mean Average Precision: %.5f' % float(correct / n_gt))
 

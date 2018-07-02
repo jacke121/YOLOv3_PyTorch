@@ -1,3 +1,4 @@
+import datetime
 import os
 import threading
 
@@ -52,14 +53,14 @@ class MyThread(threading.Thread):
                   logging.info("label does not exist: {}".format(label_path))
                   labels = np.zeros((1, 5), np.float32)
 
-              sample = {'image': img, 'label': labels}
+              sample = {'image': img, 'label': labels,"img_path":img_path}
               if self.listDataset.transforms is not None:
                   sample = self.listDataset.transforms(sample)
               self.listDataset.img_d[index] = sample
       print("data_load ok")
 class COCODataset(Dataset):
-    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=1600):
-        # list_path_txt = os.path.join(list_path,'ImageSets\Main/trainval.txt')
+    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=10000):
+        list_path_txt = os.path.join(list_path,'ImageSets\Main/trainval.txt')
         if not is_training:
             list_path_txt = os.path.join(list_path, 'ImageSets\Main/test.txt')
         with open(list_path_txt, 'r') as file:
@@ -126,7 +127,7 @@ class COCODataset(Dataset):
                 logging.info("label does not exist: {}".format(label_path))
                 labels = np.zeros((1, 5), np.float32)
 
-            sample = {'image': img, 'label': labels}
+            sample = {'image': img, 'label': labels,"img_path":img_path}
             if self.transforms is not None:
                 sample = self.transforms(sample)
             self.img_d[index] = sample
@@ -139,10 +140,10 @@ class COCODataset(Dataset):
 
 #  use for test dataloader
 if __name__ == "__main__":
-    dataloader = torch.utils.data.DataLoader(COCODataset("../data/coco/trainvalno5k.txt",
-                                                         (416, 416), True, is_debug=True),
-                                             batch_size=2,
-                                             shuffle=False, num_workers=1, pin_memory=False)
+    dataloader = torch.utils.data.DataLoader(COCODataset(r"D:\data\tiny_data\VOC2007",
+                                                         (416, 416),is_training=True, is_debug=True),
+                                             batch_size=16,
+                                             shuffle=False, num_workers=0, pin_memory=False)
     for step, sample in enumerate(dataloader):
         for i, (image, label) in enumerate(zip(sample['image'], sample['label'])):
             image = image.numpy()
@@ -156,6 +157,7 @@ if __name__ == "__main__":
                 y2 = int((l[2] + l[4] / 2) * h)
                 cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255))
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            cv2.imwrite("step{}_{}.jpg".format(step, i), image)
+            print(datetime.datetime.now())
+            # cv2.imwrite("step{}_{}.jpg".format(step, i), image)
         # only one batch
-        break
+        # break

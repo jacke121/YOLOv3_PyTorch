@@ -39,7 +39,7 @@ class ToTensor(object):
 
         filled_labels = np.zeros((self.max_objects, 5), np.float32)
         filled_labels[range(len(labels))[:self.max_objects]] = labels[:self.max_objects]
-        return {'image': torch.from_numpy(image), 'label': torch.from_numpy(filled_labels)}
+        return {'image': torch.from_numpy(image), 'label': torch.from_numpy(filled_labels),'img_path':sample['img_path']}
 
 class KeepAspect(object):
     def __init__(self):
@@ -74,7 +74,7 @@ class KeepAspect(object):
         label[:, 3] *= w / padded_w
         label[:, 4] *= h / padded_h
 
-        return {'image': image_new, 'label': label}
+        return {'image': image_new, 'label': label,'img_path':sample['img_path']}
 
 class ResizeImage(object):
     def __init__(self, new_size, interpolation=cv2.INTER_LINEAR):
@@ -84,7 +84,7 @@ class ResizeImage(object):
     def __call__(self, sample):
         image, label = sample['image'], sample['label']
         image = cv2.resize(image, self.new_size, interpolation=self.interpolation)
-        return {'image': image, 'label': label}
+        return {'image': image, 'label': label,'img_path':sample['img_path']}
 
 class ImageBaseAug(object):
     def __init__(self):
@@ -121,4 +121,4 @@ class ImageBaseAug(object):
         seq_det = self.seq.to_deterministic()
         image, label = sample['image'], sample['label']
         image = seq_det.augment_images([image])[0]
-        return {'image': image, 'label': label}
+        return {'image': image, 'label': label,'img_path':sample['img_path']}

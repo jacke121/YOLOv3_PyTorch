@@ -139,7 +139,7 @@ def train(config):
                 #                                             config["global_step"])
 
         if (epoch % 2 == 0 ) or recall / len( dataloader) > 0.96:
-            torch.save(net.state_dict(), '%s/%d.weights' % (checkpoint_dir, epoch))
+            torch.save(net.state_dict(), '%s/%04d.weights' % (checkpoint_dir, epoch))
 
 
         lr_scheduler.step()

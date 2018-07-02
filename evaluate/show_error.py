@@ -45,7 +45,6 @@ class BoundBox:
 def draw_boxes(image, boxes, labels, obj_thresh):
     for box in boxes:
         cv2.rectangle(image, (box.xmin, box.ymin), (box.xmax, box.ymax), (0, 255, 0), 1)
-    return image
         # image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         # draw = ImageDraw.Draw(image)
         # draw.text((box.xmin, box.ymin - 13), unicode(labels[box.classes] + " " + str(box.objness)), fill=(255, 0, 0),
@@ -130,7 +129,7 @@ def test(config):
                 output_list.append(yolo_losses[i](outputs[i]))
             output = torch.cat(output_list, 1)
             batch_detections = non_max_suppression(output, config["yolo"]["classes"],
-                                                   conf_thres=config["confidence_threshold"],nms_thres=config["iou_thres"])
+                                                   conf_thres=config["confidence_threshold"])
 
         # write result images. Draw bounding boxes and labels of detections
         classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
