@@ -1,150 +1,31 @@
-# coding='utf-8'
+# -*- coding:utf-8 -*-
+from __future__ import division
+
+from multiprocessing import Process, Queue, Lock, Manager
+from multiprocessing.pool import Pool
+from common.coco_dataset_single import COCODataset
+import logging
+import torch.nn as nn
 import os
 import sys
-import numpy as np
 import time
 import datetime
-import json
-import importlib
-import logging
-import shutil
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-
-# from tensorboardX import SummaryWriter
-
-MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
-# sys.path.insert(0, os.path.join(MY_DIRNAME, '..', 'evaluate'))
+import argparse
 from nets.model_main import ModelMain
 from nets.yolo_loss import YOLOLayer
-from common.coco_dataset import COCODataset
+from training import params
+
+import torch
+from torch.utils.data import DataLoader
+
+from torch.autograd import Variable
+import torch.optim as optim
+
 
 checkpoint_dir="checkpoints"
-os.makedirs('checkpoints', exist_ok=True)
-def train(config):
-    config["global_step"] = config.get("start_step", 0)
-    is_training = False if config.get("export_onnx") else True
-
-    anchors = [int(x) for x in config["yolo"]["anchors"].split(",")]
-    anchors = [[[anchors[i], anchors[i + 1]], [anchors[i + 2], anchors[i + 3]], [anchors[i + 4], anchors[i + 5]]] for i
-               in range(0, len(anchors), 6)]
-    anchors.reverse()
-    config["yolo"]["anchors"] = []
-    for i in range(3):
-        config["yolo"]["anchors"].append(anchors[i])
-    # Load and initialize network
-    net = ModelMain(config, is_training=is_training)
-    net.train(is_training)
-
-    # Optimizer and learning rate
-    optimizer = _get_optimizer(config, net)
-    lr_scheduler = optim.lr_scheduler.StepLR(
-        optimizer,
-        step_size=config["lr"]["decay_step"],
-        gamma=config["lr"]["decay_gamma"])
-
-    # Set data parallel
-    net = nn.DataParallel(net)
-    net = net.cuda()
-
-    # Restore pretrain model
-    if config["pretrain_snapshot"]:
-        logging.info("Load pretrained weights from {}".format(config["pretrain_snapshot"]))
-        state_dict = torch.load(config["pretrain_snapshot"])
-        net.load_state_dict(state_dict)
-
-    # Only export onnx
-    # if config.get("export_onnx"):
-        # real_model = net.module
-        # real_model.eval()
-        # dummy_input = torch.randn(8, 3, config["img_h"], config["img_w"]).cuda()
-        # save_path = os.path.join(config["sub_working_dir"], "pytorch.onnx")
-        # logging.info("Exporting onnx to {}".format(save_path))
-        # torch.onnx.export(real_model, dummy_input, save_path, verbose=False)
-        # logging.info("Done. Exiting now.")
-        # sys.exit()
-
-    # Evaluate interface
-    # if config["evaluate_type"]:
-        # logging.info("Using {} to evaluate model.".format(config["evaluate_type"]))
-        # evaluate_func = importlib.import_module(config["evaluate_type"]).run_eval
-        # config["online_net"] = net
-
-    # YOLO loss with 3 scales
-    yolo_losses = []
-    for i in range(3):
-        yolo_losses.append(YOLOLayer(config["batch_size"],i,config["yolo"]["anchors"][i],
-                                     config["yolo"]["classes"], (config["img_w"], config["img_h"])))
-
-    # DataLoader
-    dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
-                                                         (config["img_w"], config["img_h"]),
-                                                         is_training=True),
-                                             batch_size=config["batch_size"],
-                                             shuffle=True,drop_last=True, num_workers=0, pin_memory=True)
-
-    # Start the training loop
-    logging.info("Start training.")
-    for epoch in range(config["epochs"]):
-        recall = 0
-        for step, samples in enumerate(dataloader):
-            images, labels = samples["image"], samples["label"]
-            start_time = time.time()
-            config["global_step"] += 1
-
-            # Forward and backward
-            optimizer.zero_grad()
-            outputs = net(images)
-            losses_name = ["total_loss", "x", "y", "w", "h", "conf", "cls","recall"]
-            losses = [0] * len(losses_name)
-            for i in range(3):
-                _loss_item = yolo_losses[i](outputs[i], labels)
-                for j, l in enumerate(_loss_item):
-                    losses[j]+=l
-            # losses = [sum(l) for l in losses]
-            loss = losses[0]
-            loss.backward()
-            optimizer.step()
-
-            if step > 0 and step % 2 == 0:
-                _loss = loss.item()
-                duration = float(time.time() - start_time)
-                example_per_second = config["batch_size"] / duration
-                lr = optimizer.param_groups[0]['lr']
-
-                strftime = datetime.datetime.now().strftime("%H:%M:%S")
-                recall += losses[7]/3
-                print(
-                    '%s [Epoch %d/%d, Batch %03d/%d losses: x %.5f, y %.5f, w %.5f, h %.5f, conf %.5f, cls %.5f, total %.5f, recall: %.3f]' %
-                    (strftime, epoch, config["epochs"], step, len(dataloader),
-                     losses[1], losses[2], losses[3],
-                     losses[4], losses[5], losses[6],
-                     _loss,  losses[7]/3))
-                # logging.info(epoch [%.3d] iter = %d loss = %.2f example/sec = %.3f lr = %.5f "%
-                #     (epoch, step, _loss, example_per_second, lr))
-                # config["tensorboard_writer"].add_scalar("lr",
-                #                                         lr,
-                #                                         config["global_step"])
-                # config["tensorboard_writer"].add_scalar("example/sec",
-                #                                         example_per_second,
-                #                                         config["global_step"])
-                # for i, name in enumerate(losses_name):
-                #     value = _loss if i == 0 else losses[i]
-                #     config["tensorboard_writer"].add_scalar(name,
-                #                                             value,
-                #                                             config["global_step"])
-
-        if (epoch % 2 == 0 ) or recall / len( dataloader) > 0.96:
-            torch.save(net.state_dict(), '%s/%04d.weights' % (checkpoint_dir, epoch))
-
-
-        lr_scheduler.step()
-    # net.train(True)
-    logging.info("Bye bye")
+os.makedirs(checkpoint_dir, exist_ok=True)
+config = params.TRAINING_PARAMS
+config["batch_size"] *= len(config["parallels"])
 
 def _get_optimizer(config, net):
     optimizer = None
@@ -185,22 +66,142 @@ def _get_optimizer(config, net):
                               nesterov=(config["optimizer"]["type"] == "nesterov"))
 
     return optimizer
+def get_data(queue,lock):
+        dataloader = DataLoader(COCODataset(config["train_path"],
+                                                         (config["img_w"], config["img_h"]),
+                                                         is_training=True, data_size=100000),
+        batch_size=config["batch_size"], shuffle=True,drop_last=True, num_workers=0)
+        queue.put(("len",len(dataloader)))
+        while True:
+            for batch_i, samples in enumerate(dataloader):
+                is_put=1
+                while is_put:
+                    lock.acquire()
+                    if queue.qsize()<1:
+                        queue.put(samples)
+                        lock.release()
+                        is_put=0
+                    else:
+                        time.sleep(0.005)
+                        lock.release()
 
-def main():
+def train(config):
+    config["global_step"] = config.get("start_step", 0)
+    is_training = False if config.get("export_onnx") else True
+
+    anchors = [int(x) for x in config["yolo"]["anchors"].split(",")]
+    anchors = [[[anchors[i], anchors[i + 1]], [anchors[i + 2], anchors[i + 3]], [anchors[i + 4], anchors[i + 5]]]
+               for i
+               in range(0, len(anchors), 6)]
+    anchors.reverse()
+    config["yolo"]["anchors"] = []
+    for i in range(3):
+        config["yolo"]["anchors"].append(anchors[i])
+    # Load and initialize network
+    net = ModelMain(config, is_training=is_training)
+    net.train(is_training)
+
+    # Optimizer and learning rate
+    optimizer = _get_optimizer(config, net)
+    lr_scheduler = optim.lr_scheduler.StepLR(
+        optimizer,
+        step_size=config["lr"]["decay_step"],
+        gamma=config["lr"]["decay_gamma"])
+
+    # Set data parallel
+    net = nn.DataParallel(net)
+    net = net.cuda()
+
+    # Restore pretrain model
+    if config["pretrain_snapshot"]:
+        logging.info("Load pretrained weights from {}".format(config["pretrain_snapshot"]))
+        state_dict = torch.load(config["pretrain_snapshot"])
+        net.load_state_dict(state_dict)
+
+    # YOLO loss with 3 scales
+    yolo_losses = []
+    for i in range(3):
+        yolo_losses.append(YOLOLayer(config["batch_size"], i, config["yolo"]["anchors"][i],
+                                     config["yolo"]["classes"], (config["img_w"], config["img_h"])))
+
+    total_loss = 0
+    last_total_loss = 0
+
+    manager = Manager()
+    # 父进程创建Queue，并传给各个子进程：
+    q = manager.Queue(1)
+    lock = manager.Lock()  # 初始化一把锁
+    p = Pool()
+    pw = p.apply_async(get_data, args=(q, lock))
+
+
+    batch_len=q.get()
+    if batch_len[0]=="len":
+        batch_len=batch_len[1]
+    logging.info("Start training.")
+    for epoch in range(config["epochs"]):
+        recall = 0
+        for step in range(batch_len):
+            samples = q.get()
+            images, labels = samples["image"], samples["label"]
+            start_time = time.time()
+            config["global_step"] += 1
+
+            # Forward and backward
+            optimizer.zero_grad()
+            outputs = net(images)
+            losses_name = ["total_loss", "x", "y", "w", "h", "conf", "cls", "recall"]
+            losses = [0] * len(losses_name)
+            for i in range(3):
+                _loss_item = yolo_losses[i](outputs[i], labels)
+                for j, l in enumerate(_loss_item):
+                    losses[j] += l
+            # losses = [sum(l) for l in losses]
+            loss = losses[0]
+            loss.backward()
+            optimizer.step()
+
+            if step > 0 and step % 2 == 0:
+                _loss = loss.item()
+                duration = float(time.time() - start_time)
+                example_per_second = config["batch_size"] / duration
+                lr = optimizer.param_groups[0]['lr']
+
+                strftime = datetime.datetime.now().strftime("%H:%M:%S")
+                recall += losses[7] / 3
+                print(
+                    '%s [Epoch %d/%d, Batch %03d/%d losses: x %.5f, y %.5f, w %.5f, h %.5f, conf %.5f, cls %.5f, total %.5f, recall: %.3f]' %
+                    (strftime, epoch, config["epochs"], step, batch_len,
+                     losses[1], losses[2], losses[3],
+                     losses[4], losses[5], losses[6],
+                     _loss, losses[7] / 3))
+                # logging.info(epoch [%.3d] iter = %d loss = %.2f example/sec = %.3f lr = %.5f "%
+                #     (epoch, step, _loss, example_per_second, lr))
+                # config["tensorboard_writer"].add_scalar("lr",
+                #                                         lr,
+                #                                         config["global_step"])
+                # config["tensorboard_writer"].add_scalar("example/sec",
+                #                                         example_per_second,
+                #                                         config["global_step"])
+                # for i, name in enumerate(losses_name):
+                #     value = _loss if i == 0 else losses[i]
+                #     config["tensorboard_writer"].add_scalar(name,
+                #                                             value,
+                #                                             config["global_step"])
+
+        if (epoch % 2 == 0 and recall / batch_len > 0.7) or recall / batch_len > 0.96:
+            torch.save(net.state_dict(), '%s/%04d.weights' % (checkpoint_dir, epoch))
+
+        lr_scheduler.step()
+
+
+if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(asctime)s %(filename)s] %(message)s")
 
-
-    params_path = 'params.py'
-    if not os.path.isfile(params_path):
-        logging.error("no params file found! path: {}".format(params_path))
-        sys.exit()
-    config = importlib.import_module(params_path[:-3]).TRAINING_PARAMS
-    config["batch_size"] *= len(config["parallels"])
-
     # Create sub_working_dir
     sub_working_dir = '{}/{}/size{}x{}_try{}/{}'.format(
-        config['working_dir'], config['model_params']['backbone_name'], 
+        config['working_dir'], config['model_params']['backbone_name'],
         config['img_w'], config['img_h'], config['try'],
         time.strftime("%Y%m%d%H%M%S", time.localtime()))
     if not os.path.exists(sub_working_dir):
@@ -216,5 +217,4 @@ def main():
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, config["parallels"]))
     train(config)
 
-if __name__ == "__main__":
-    main()
+

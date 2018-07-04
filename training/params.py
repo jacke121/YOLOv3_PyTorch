@@ -14,7 +14,7 @@ TRAINING_PARAMS = \
         "other_lr": 0.01,
         "freeze_backbone": False,   #  freeze backbone wegiths to finetune
         "decay_gamma": 0.1,
-        "decay_step": 20,           #  decay lr in every ? epochs
+        "decay_step": 40,           #  decay lr in every ? epochs
     },
     "optimizer": {
         "type": "adam",
@@ -29,8 +29,32 @@ TRAINING_PARAMS = \
     # "parallels": [0,1,2,3],                         #  config GPU device
     "parallels": [0],                         #  config GPU device
     "working_dir": "YOUR_WORKING_DIR",              #  replace with your working dir
-    "pretrain_snapshot": "checkpoints/100.pth",                        #  load checkpoint
+    "pretrain_snapshot": "checkpoints/142.weights",                        #  load checkpoint
     "evaluate_type": "", 
     "try": 0,
     "export_onnx": False,
+}
+
+TESTING_PARAMS = \
+{
+    "model_params": {
+        "backbone_name": "darknet_53",
+        "backbone_pretrained": "",
+    },
+    "yolo": {
+        "anchors": "13,18, 19,31, 23,55, 26,80, 37,67, 40,50, 45,36, 69,206, 81,122",
+        "classes": 1,
+    },
+    "batch_size": 1,
+    "confidence_threshold": 0.8,
+    "classes_names_path": "../data/coco2cls.names",
+    "iou_thres": 0.3,
+    "val_path": r"D:\data\VOC2007",
+    "images_path":  r"D:\data\bj_yuanyang01\JPEGImages/",
+    "img_h": 416,
+    "img_w": 416,
+    "parallels": [0],
+    # "pretrain_snapshot": "../weights/yolov3_weights_pytorch.pth",
+    "pretrain_snapshot": "../training/checkpoints/140.weights",
+    "test_weights": "../training/checkpoints",
 }
