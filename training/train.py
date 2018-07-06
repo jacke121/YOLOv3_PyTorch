@@ -72,6 +72,7 @@ def train(config):
 
     # Start the training loop
     logging.info("Start training.")
+    dataload_len=len(dataloader)
     for epoch in range(config["epochs"]):
         recall = 0
         for step, samples in enumerate(dataloader):
@@ -87,12 +88,12 @@ def train(config):
             for i in range(3):
                 _loss_item = yolo_losses[i](outputs[i], labels)
                 for j, l in enumerate(_loss_item):
-                    losses[j]+=l
+                    losses[j] += l
             # losses = [sum(l) for l in losses]
             loss = losses[0]
             loss.backward()
             optimizer.step()
-
+            recall += losses[7] / 3
             if step > 0 and step % 2 == 0:
                 _loss = loss.item()
                 duration = float(time.time() - start_time)
@@ -100,13 +101,13 @@ def train(config):
                 lr = optimizer.param_groups[0]['lr']
 
                 strftime = datetime.datetime.now().strftime("%H:%M:%S")
-                recall += losses[7]/3
+
                 print(
                     '%s [Epoch %d/%d, Batch %03d/%d losses: x %.5f, y %.5f, w %.5f, h %.5f, conf %.5f, cls %.5f, total %.5f, recall: %.3f]' %
-                    (strftime, epoch, config["epochs"], step, len(dataloader),
+                    (strftime, epoch, config["epochs"], step, dataload_len,
                      losses[1], losses[2], losses[3],
                      losses[4], losses[5], losses[6],
-                     _loss,  losses[7]/3))
+                     _loss, losses[7] / 3))
                 # logging.info(epoch [%.3d] iter = %d loss = %.2f example/sec = %.3f lr = %.5f "%
                 #     (epoch, step, _loss, example_per_second, lr))
                 # config["tensorboard_writer"].add_scalar("lr",
@@ -121,9 +122,8 @@ def train(config):
                 #                                             value,
                 #                                             config["global_step"])
 
-        if (epoch % 2 == 0 and recall / len( dataloader) > 0.7 ) or recall / len( dataloader) > 0.96:
-            torch.save(net.state_dict(), '%s/%04d.weights' % (checkpoint_dir, epoch))
-
+        if (epoch % 2 == 0 and recall / dataload_len > 0.7) or recall / dataload_len > 0.96:
+            torch.save(net.state_dict(), '%s/%.4f_%04d.weights' % (checkpoint_dir,recall/dataload_len, epoch))
 
         lr_scheduler.step()
     # net.train(True)

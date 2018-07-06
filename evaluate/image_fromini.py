@@ -65,15 +65,14 @@ def test(config):
     net = net.cuda()
     ini_files = os.listdir(os.path.join(config['test_weights'], 'result'))
 
-    for kkk,ini_file in enumerate(ini_files):
+    for index,ini_file in enumerate(ini_files):
         ini_list_config = configparser.ConfigParser()
-        config_file_path = os.path.join(config['test_weights'], 'result',ini_files[-kkk-1])
+        config_file_path = os.path.join(config['test_weights'], 'result',ini_file)
         ini_list_config.read(config_file_path)
         ini_session = ini_list_config.sections()
         accuracy = ini_list_config.items(ini_session[0])
         err_jpgfiles = ini_list_config.items(ini_session[1])
-        weight_file = os.path.join(config['test_weights'],'%s.weights'%ini_files[-kkk-1].split('_')[0])
-        pass
+        weight_file = os.path.join(config['test_weights'],'%s.weights'% os.path.basename(ini_file[:-4]).split('_')[1])
         if weight_file:                    # Restore pretrain model
             logging.info("load checkpoint from {}".format(weight_file))
             state_dict = torch.load(weight_file)
@@ -93,11 +92,11 @@ def test(config):
         # for step in range(0, len(images_path), batch_size):
 
 
-        for _jpg_images in err_jpgfiles:
+        for index, jpgImages in enumerate(err_jpgfiles):
             images = []# preprocess
             images_origin = []
-            jpg_path = str(_jpg_images[1])
-            logging.info("processing: {}".format(jpg_path))
+            jpg_path = str(jpgImages[1])
+            print(index,jpg_path)
             bbox_list = read_gt_boxes(jpg_path)
 
             image = cv2.imread(jpg_path, cv2.IMREAD_COLOR)
@@ -123,9 +122,7 @@ def test(config):
                 output = torch.cat(output_list, 1)
                 batch_detections = non_max_suppression(output, config["yolo"]["classes"],
                                                        conf_thres=config["confidence_threshold"])
-            classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
-            if not os.path.isdir("./output/"):
-                os.makedirs("./output/")
+            # classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
             for idx, detections in enumerate(batch_detections):
                 plt.figure()
                 fig, ax = plt.subplots(1)
@@ -142,10 +139,10 @@ def test(config):
                         box_w = ((x2 - x1) / pre_w) * ori_w
                         y1 = (y1 / pre_h) * ori_h
                         x1 = (x1 / pre_w) * ori_w
-                        image_show = cv2.rectangle(images_origin[idx], (x1, y1), (x1 + box_w, y1 + box_h), (0, 0, 255),2)
+                        image_show = cv2.rectangle(images_origin[idx], (x1, y1), (x1 + box_w, y1 + box_h), (0, 255, 0),1)
                     for (x1, x2, y1, y2) in bbox_list:
                         [x1, x2, y1, y2] = map(int, [x1, x2, y1, y2])
-                        cv2.rectangle(image_show, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.rectangle(image_show, (x1, y1), (x2, y2), (0, 0, 255), 1)
                 cv2.imshow('1', image_show)
                 cv2.waitKey()
 

@@ -35,10 +35,10 @@ TRAINING_PARAMS = \
     "classes_names_path": "../data/coco2cls.names",
     "iou_thres": 0.3,
     "val_path": r"D:\data\VOC2007",
-    "images_path":  r"\\192.168.55.39\team-CV\dataset\tiny_data_0627\test\JPEGImages/",
+    "images_path":  r"\\192.168.55.39\team-CV\dataset\tiny_data_0627\train\_2test\JPEGImages/",
     "img_h": 416,
     "img_w": 416,
     "parallels": [0],
     # "pretrain_snapshot": "../weights/yolov3_weights_pytorch.pth",
-    "pretrain_snapshot": "../training/checkpoints/140.weights",
+    "pretrain_snapshot": "../training/checkpoints/0060.weights",
 }

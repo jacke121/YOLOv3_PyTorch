@@ -12,7 +12,7 @@ from torch.utils.data import dataloader
 import torch
 import torch.nn as nn
 import configparser
-
+import params
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 from nets.model_main import ModelMain
@@ -54,14 +54,15 @@ def write_ini(ini_name,accuracy,error_list):
     print('write to ini %s' % ini_name)
     _conf_file.write(open(ini_name, 'w'))
 def evaluate(config):
-    checkpoint_paths = {'58': r'\\192.168.25.58\Team-CV\checkpoints'}
+    # checkpoint_paths = {'58': r'\\192.168.25.58\Team-CV\checkpoints'}
+    # checkpoint_paths = {'58': r'D:\deeplearning\yolov3\YOLOv3_PyTorch\training\checkpoints'}
     checkpoint_paths = {'68': r'E:\github\YOLOv3_PyTorch\training\checkpoints'}
     post_weights = {k: 0 for k in checkpoint_paths.keys()}
     weight_index = {k: 0 for k in checkpoint_paths.keys()}
     time_inter = 10
-    dataloader = torch.utils.data.DataLoader(COCODataset(config["val_path"],
+    dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
                                                          (config["img_w"], config["img_h"]),
-                                                         is_training=False),
+                                                         is_training=True),
                                              batch_size=config["batch_size"],
                                              shuffle=False, num_workers=0, pin_memory=False,drop_last = True)  # DataLoader
     net, yolo_losses = build_yolov3(config)
@@ -90,7 +91,7 @@ def evaluate(config):
             if checkpoint_weights[weight_index[key]].split('.')[0] in checkpoint_result:
                 print('weight_index[key] +',weight_index[key])
                 weight_index[key] += 1
-                time.sleep(time_inter//20)
+                time.sleep(time_inter/100)
                 continue
             weight_index[key] += 1
             try:
@@ -118,7 +119,7 @@ def evaluate(config):
                     for i in range(3):
                         output_list.append(yolo_losses[i](outputs[i]))
                     output = torch.cat(output_list, 1)
-                    output = non_max_suppression(output, 1, conf_thres=0.4)
+                    output = non_max_suppression(output, 1, conf_thres=0.8)
                     #  calculate
                     for sample_i in range(labels.size(0)):
                         # Get labels for sample where width is not zero (dummies)
@@ -146,17 +147,20 @@ def evaluate(config):
 
             logging.info('Mean Average Precision: %.5f' % float(correct / n_gt))
             Mean_Average = float(correct / n_gt)
-            ini_name = os.path.join(checkpoint_path+'/result/', '%s_%.5f.ini'%(post_weights[key].split('.')[0],float(correct / n_gt)))
+            ini_name = os.path.join(checkpoint_path + '/result/',
+                                    '%.4f_%s.ini' % (float(correct / n_gt), post_weights[key].split('.')[0]))
             write_ini(ini_name, Mean_Average, imagepath_list)
 
 def main():
     logging.basicConfig(level=logging.DEBUG,
                         format="[%(asctime)s %(filename)s] %(message)s")
-    params_path ='params.py'# sys.argv[1]
-    if not os.path.isfile(params_path):
-        logging.error("no params file found! path: {}".format(params_path))
-        sys.exit()
-    config = importlib.import_module(params_path[:-3]).TRAINING_PARAMS
+    # params_path ='../training/params.py'# sys.argv[1]
+    # if not os.path.isfile(params_path):
+    #     logging.error("no params file found! path: {}".format(params_path))
+    #     sys.exit()
+
+    config = params.TRAINING_PARAMS
+    # config = importlib.import_module(params_path[:-3]).TRAINING_PARAMS
     config["batch_size"] *= len(config["parallels"])
 
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, config["parallels"]))
