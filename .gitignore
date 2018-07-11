@@ -8,3 +8,9 @@ output
 training/YOUR_WORKING_DIR/
 training/checkpoints/
 .idea
+
+evaluate/weights/
+evaluate/test_paste/
+test/output_error/
+test/pic_error/
+test/Annotations/

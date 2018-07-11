@@ -14,6 +14,7 @@ import cv2
 import torch
 import torch.nn as nn
 
+from tools import savexml
 
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
@@ -28,20 +29,23 @@ TRAINING_PARAMS = \
         "backbone_pretrained": "",
     },
     "yolo": {
-        "anchors": "13,18, 14,31, 25,52, 27,77, 27,29, 39,61, 44,40, 70,206, 73,119",
+        "anchors": "15,22, 24,38, 25,64, 27,82, 39,58, 44,38, 62,77, 70,131, 78,233",
         "classes": 1,
     },
     "batch_size": 1,
     "confidence_threshold": 0.8,
     "classes_names_path": "../data/coco2cls.names",
     "iou_thres": 0.3,
-    "val_path": r"D:\data\VOC2007",
-    "images_path":  r"\\192.168.55.39\team-CV\dataset\tiny_data_0627\train\_2test\JPEGImages/",
+    "images_path":  r"\\192.168.55.38\Team-CV\cam2pick\camera_pic\sh_wuding\rec_pic/",
+    # "images_path":  r"\\192.168.25.20\SBDFileSharing\Team-CV\find_mouse\background\huaping\pic/",
+    # "images_path":  r"E:\github\YOLOv3_PyTorch\evaluate\test_paste/",
     "img_h": 416,
     "img_w": 416,
     "parallels": [0],
     # "pretrain_snapshot": "../weights/yolov3_weights_pytorch.pth",
-    "pretrain_snapshot": "../training/checkpoints/0099.weights",
+    "pretrain_snapshot": r"\\192.168.55.73\Team-CV\checkpoints\0710\YOLOv3_Pytorch/16.weights",
+    # "pretrain_snapshot": r"E:\github\YOLOv3_PyTorch\evaluate/weights/56.weights",
+    # "pretrain_snapshot": r"E:\github\YOLOv3_PyTorch\evaluate/weights/0.9296_0026.weights",
 }
 
 def test(config):
@@ -76,8 +80,8 @@ def test(config):
                                      config["yolo"]["classes"], (config["img_w"], config["img_h"])))
 
     # prepare images path
-    images_name = os.listdir(config["images_path"])
-    images_path = [os.path.join(config["images_path"], name) for name in images_name]
+    images_path = os.listdir(config["images_path"])
+    # images_path = [os.path.join(config["images_path"], name) for name in images_name]
     if len(images_path) == 0:
         raise Exception("no image found in {}".format(config["images_path"]))
 
@@ -88,8 +92,9 @@ def test(config):
         images = []
         images_origin = []
         for path in images_path[step*batch_size: (step+1)*batch_size]:
+            if path.endswith(".jpg")
             logging.info("processing: {}".format(path))
-            image = cv2.imread(path, cv2.IMREAD_COLOR)
+            image = cv2.imread(os.path.join(config["images_path"], path), cv2.IMREAD_COLOR)
             if image is None:
                 logging.error("read path error: {}. skip it.".format(path))
                 continue
@@ -116,11 +121,13 @@ def test(config):
 
         # write result images. Draw bounding boxes and labels of detections
         classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
-        if not os.path.isdir("./output/"):
-            os.makedirs("./output/")
         for idx, detections in enumerate(batch_detections):
-
+            # image_show =images_origin[idx]
             if detections is not None:
+
+                anno = savexml.GEN_Annotations(path + '.jpg')
+                anno.set_size(1280, 720, 3)
+
                 unique_labels = detections[:, -1].cpu().unique()
                 n_cls_preds = len(unique_labels)
                 for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
@@ -133,14 +140,19 @@ def test(config):
                     x1 = (x1 / pre_w) * ori_w
                     # Create a Rectangle patch
                     image_show = cv2.rectangle(images_origin[idx], (x1, y1), (x1 + box_w, y1 + box_h), (0, 255, 0), 1)
+                    anno.add_pic_attr("mouse", x1, y1, box_w, box_h,"0")
 
-            cv2.imshow('1', image_show)
-            cv2.waitKey()
+                print("output/"+str(step)+".jpg")
+                anno.savefile("Annotations/"+ path[:-4] + '.xml')
+                cv2.imwrite("output/"+os.path.basename(path),image_show)
+            # cv2.imshow('1', image_show)
+            # cv2.waitKey()
     logging.info("Save all results to ./output/")
 
 if __name__ == "__main__":
     os.makedirs('output', exist_ok=True)
-    logging.basicConfig(level=logging.DEBUG,format="[%(asctime)s %(filename)s] %(message)s")
+    os.makedirs('Annotations', exist_ok=True)
+    logging.basicConfig(level=logging.DEBUG,format="[%(asctime)s] %(message)s")
 
     config =TRAINING_PARAMS
     config["batch_size"] *= len(config["parallels"])

@@ -12,9 +12,6 @@ import cv2
 import random
 
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.ticker import NullLocator
 
 import torch
 import torch.nn as nn
@@ -57,8 +54,6 @@ from nets.model_main import ModelMain
 from nets.yolo_loss import YOLOLayer
 from common.utils import non_max_suppression, bbox_iou
 
-cmap = plt.get_cmap('tab20b')
-colors = [cmap(i) for i in np.linspace(0, 1, 20)]
 
 labels = ["mouse"]
 def test(config):
@@ -133,19 +128,12 @@ def test(config):
 
         # write result images. Draw bounding boxes and labels of detections
         classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
-        if not os.path.isdir("./output/"):
-            os.makedirs("./output/")
         for idx, detections in enumerate(batch_detections):
-            plt.figure()
-            fig, ax = plt.subplots(1)
-            ax.imshow(images_origin[idx])
             if detections is not None:
                 unique_labels = detections[:, -1].cpu().unique()
                 n_cls_preds = len(unique_labels)
-                bbox_colors = random.sample(colors, n_cls_preds)
                 boxes = []
                 for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
-                    color = bbox_colors[int(np.where(unique_labels == int(cls_pred))[0])]
                     # Rescale coordinates to original dimensions
                     ori_h, ori_w = images_origin[idx].shape[:2]
                     pre_h, pre_w = config["img_h"], config["img_w"]
@@ -158,15 +146,6 @@ def test(config):
                     box = BoundBox(x1, y1, x1 + box_w, y1 + box_h, cls_conf.item(), int(cls_pred),
                                    classes[int(cls_pred)])
                     boxes.append(box)
-                    # bbox = patches.Rectangle((x1, y1), box_w, box_h, linewidth=1,
-                    #                          edgecolor=color,
-                    #                          facecolor='none')
-                    # # Add the bbox to the plot
-                    # ax.add_patch(bbox)
-                    # Add label
-                    # plt.text(x1, y1, s=classes[int(cls_pred)], color='white',
-                    #          verticalalignment='top',
-                    #          bbox={'color': color, 'pad': 0})
             # Save generated image with detections
             img_show = draw_boxes(images_origin[idx], boxes, labels,0.5)
             img_show = cv2.resize(img_show, (img_show.shape[1], img_show.shape[0]),
@@ -174,7 +153,6 @@ def test(config):
             # outVideo.write(img_show)
             cv2.imshow("ai", img_show)
             cv2.waitKey()
-            # plt.close()
     logging.info("Save all results to ./output/")
 
 if __name__ == "__main__":

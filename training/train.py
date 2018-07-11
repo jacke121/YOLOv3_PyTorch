@@ -66,7 +66,7 @@ def train(config):
     # DataLoader
     dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
                                                          (config["img_w"], config["img_h"]),
-                                                         is_training=True),
+                                                         is_training=True,is_scene=False),
                                              batch_size=config["batch_size"],
                                              shuffle=True,drop_last=True, num_workers=0, pin_memory=True)
 
@@ -75,55 +75,49 @@ def train(config):
     dataload_len=len(dataloader)
     for epoch in range(config["epochs"]):
         recall = 0
+        mini_step = 0
         for step, samples in enumerate(dataloader):
             images, labels = samples["image"], samples["label"]
             start_time = time.time()
             config["global_step"] += 1
-
-            # Forward and backward
-            optimizer.zero_grad()
-            outputs = net(images)
-            losses_name = ["total_loss", "x", "y", "w", "h", "conf", "cls","recall"]
-            losses = [0] * len(losses_name)
-            for i in range(3):
-                _loss_item = yolo_losses[i](outputs[i], labels)
-                for j, l in enumerate(_loss_item):
-                    losses[j] += l
-            # losses = [sum(l) for l in losses]
-            loss = losses[0]
-            loss.backward()
-            optimizer.step()
-            recall += losses[7] / 3
-            if step > 0 and step % 2 == 0:
+            for mini_batch in range(6):
+                mini_step += 1
+                # Forward and backward
+                optimizer.zero_grad()
+                outputs = net(images)
+                losses_name = ["total_loss", "x", "y", "w", "h", "conf", "cls", "recall"]
+                losses = [0] * len(losses_name)
+                for i in range(3):
+                    _loss_item = yolo_losses[i](outputs[i], labels)
+                    for j, l in enumerate(_loss_item):
+                        losses[j] += l
+                # losses = [sum(l) for l in losses]
+                loss = losses[0]
+                loss.backward()
+                optimizer.step()
                 _loss = loss.item()
-                duration = float(time.time() - start_time)
-                example_per_second = config["batch_size"] / duration
-                lr = optimizer.param_groups[0]['lr']
+                # example_per_second = config["batch_size"] / duration
+                # lr = optimizer.param_groups[0]['lr']
 
                 strftime = datetime.datetime.now().strftime("%H:%M:%S")
-
-                print(
-                    '%s [Epoch %d/%d, Batch %03d/%d losses: x %.5f, y %.5f, w %.5f, h %.5f, conf %.5f, cls %.5f, total %.5f, recall: %.3f]' %
-                    (strftime, epoch, config["epochs"], step, dataload_len,
-                     losses[1], losses[2], losses[3],
-                     losses[4], losses[5], losses[6],
-                     _loss, losses[7] / 3))
-                # logging.info(epoch [%.3d] iter = %d loss = %.2f example/sec = %.3f lr = %.5f "%
-                #     (epoch, step, _loss, example_per_second, lr))
-                # config["tensorboard_writer"].add_scalar("lr",
-                #                                         lr,
-                #                                         config["global_step"])
-                # config["tensorboard_writer"].add_scalar("example/sec",
-                #                                         example_per_second,
-                #                                         config["global_step"])
-                # for i, name in enumerate(losses_name):
-                #     value = _loss if i == 0 else losses[i]
-                #     config["tensorboard_writer"].add_scalar(name,
-                #                                             value,
-                #                                             config["global_step"])
-
-        if (epoch % 2 == 0 and recall / dataload_len > 0.7) or recall / dataload_len > 0.96:
-            torch.save(net.state_dict(), '%s/%.4f_%04d.weights' % (checkpoint_dir,recall/dataload_len, epoch))
+                if (losses[7] / 3 > recall / (step+1)) or mini_batch == 5:
+                    recall += losses[7] / 3
+                    print(
+                        '%s [Epoch %d/%d,batch %03d/%d loss:x %.5f,y %.5f,w %.5f,h %.5f,conf %.5f,cls %.5f,total %.5f,rec %.3f,avrec %.3f %d]' %
+                        (strftime, epoch, config["epochs"], step, dataload_len,
+                         losses[1], losses[2], losses[3],
+                         losses[4], losses[5], losses[6],
+                         _loss, losses[7] / 3, recall / (step+1), mini_batch))
+                    break
+                else:
+                    print(
+                        '%s [Epoch %d/%d,batch %03d/%d loss:x %.5f,y %.5f,w %.5f,h %.5f,conf %.5f,cls %.5f,total %.5f,rec %.3f,prerc %.3f %d]' %
+                        (strftime, epoch, config["epochs"], step, dataload_len,
+                         losses[1], losses[2], losses[3],
+                         losses[4], losses[5], losses[6],
+                         _loss, losses[7] / 3, recall / step, mini_batch))
+        if (epoch % 2 == 0 and recall / len(dataloader) > 0.7) or recall / len(dataloader) > 0.96:
+            torch.save(net.state_dict(), '%s/%.4f_%04d.weights' % (checkpoint_dir, recall / len(dataloader), epoch))
 
         lr_scheduler.step()
     # net.train(True)

@@ -14,23 +14,40 @@ import random
 import xml.etree.ElementTree as ET
 import matplotlib
 import configparser
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.ticker import NullLocator
 import training.params
 import torch
 import torch.nn as nn
 
-config = training.params.TESTING_PARAMS
+TESTING_PARAMS = \
+{
+    "model_params": {
+        "backbone_name": "darknet_53",
+        "backbone_pretrained": "",
+    },
+    "yolo": {
+        "anchors": "15,22, 24,38, 25,64, 27,82, 39,58, 44,38, 62,77, 70,131, 78,233",
+        "classes": 1,
+    },
+    "batch_size": 1,
+    "confidence_threshold": 0.5,
+    "classes_names_path": "../data/coco.names",
+    "iou_thres": 0.5,
+    "val_path": r"D:\data\VOC2007",
+    "images_path": r"\\192.168.55.39\team-CV\dataset\wuding_yy\JPEGImages/",
+    "img_h": 416,
+    "img_w": 416,
+    "parallels": [0],
+    # "pretrain_snapshot": "../weights/yolov3_weights_pytorch.pth",
+    "pretrain_snapshot": r"W:\checkpoints/0142.weights",
+    'test_weights':r'\\192.168.25.58\Team-CV\checkpoints\torch_yolov3\result/'
+}
+config = TESTING_PARAMS
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 from nets.model_main import ModelMain
 from nets.yolo_loss import YOLOLayer
 from common.utils import non_max_suppression, bbox_iou
 
-cmap = plt.get_cmap('tab20b')
-colors = [cmap(i) for i in np.linspace(0, 1, 20)]
 def read_gt_boxes(jpg_path):
     xml_file = jpg_path.replace('JPEGImages', 'Annotations').replace('jpg', 'xml')
     tree = ET.parse(xml_file)
@@ -124,15 +141,10 @@ def test(config):
                                                        conf_thres=config["confidence_threshold"])
             # classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
             for idx, detections in enumerate(batch_detections):
-                plt.figure()
-                fig, ax = plt.subplots(1)
-                ax.imshow(images_origin[idx])
                 if detections is not None:
                     unique_labels = detections[:, -1].cpu().unique()
                     n_cls_preds = len(unique_labels)
-                    bbox_colors = random.sample(colors, n_cls_preds)
                     for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
-                        color = bbox_colors[int(np.where(unique_labels == int(cls_pred))[0])]
                         ori_h, ori_w = images_origin[idx].shape[:2]# Rescale coordinates to original dimensions
                         pre_h, pre_w = config["img_h"], config["img_w"]
                         box_h = ((y2 - y1) / pre_h) * ori_h

@@ -36,18 +36,19 @@ class MyThread(threading.Thread):
                   # labels = np.zeros(shape=(num_objs, 5), dtype=np.float64)
                   labels = []
                   for ix, obj in enumerate(objs):
-                      bbox = obj.find('bndbox')
-                      x1 = max(float(bbox.find('xmin').text), 1)  # - 1
-                      y1 = max(float(bbox.find('ymin').text), 1)  # - 1
-                      x2 = min(float(bbox.find('xmax').text), 1279)  # - 1
-                      y2 = min(float(bbox.find('ymax').text), 719)  # - 1
-                      cls = self.listDataset._class_to_ind[obj.find('name').text.lower().strip()]
-                      label_ = [cls, ((x1 + x2) / 2) / w, ((y1 + y2) / 2) / h, (x2 - x1) / w, (y2 - y1) / h]
-                      # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
-                      #                  w / padded_w, h / padded_h]
-                      # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
-                      #                  w_new / padded_w, h_new / padded_h]
-                      labels.append(label_)
+                      if obj.find('difficult') is None or str(obj.find('difficult').text) == "0":
+                          bbox = obj.find('bndbox')
+                          x1 = max(float(bbox.find('xmin').text), 1)  # - 1
+                          y1 = max(float(bbox.find('ymin').text), 1)  # - 1
+                          x2 = min(float(bbox.find('xmax').text), 1279)  # - 1
+                          y2 = min(float(bbox.find('ymax').text), 719)  # - 1
+                          cls = self.listDataset._class_to_ind[obj.find('name').text.lower().strip()]
+                          label_ = [cls, ((x1 + x2) / 2) / w, ((y1 + y2) / 2) / h, (x2 - x1) / w, (y2 - y1) / h]
+                          # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
+                          #                  w / padded_w, h / padded_h]
+                          # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
+                          #                  w_new / padded_w, h_new / padded_h]
+                          labels.append(label_)
                   labels = np.asarray(labels)
               else:
                   logging.info("label does not exist: {}".format(label_path))
@@ -59,7 +60,7 @@ class MyThread(threading.Thread):
               self.listDataset.img_d[index] = sample
       print("data_load ok")
 class COCODataset(Dataset):
-    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=10000):
+    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=10000,is_scene=False):
         list_path_txt = os.path.join(list_path,'ImageSets\Main/trainval.txt')
         if not is_training:
             list_path_txt = os.path.join(list_path, 'ImageSets\Main/test.txt')
@@ -72,6 +73,13 @@ class COCODataset(Dataset):
                               self.train_files_]
         self.label_files = [os.path.join(list_path, 'Annotations', '%s.xml' % train_file.strip('\n')) for train_file in
                                 self.train_files_]
+        if is_scene:
+            self.img_files = [list_path + '%s.jpg' % train_file.strip('\n').replace('Annotations', 'JPEGImages') for
+                              train_file in
+                              self.train_files_]
+            self.label_files = [list_path + '%s.xml' % train_file.strip('\n') for train_file in
+                                self.train_files_]
+
         self.img_size = img_size  # (w, h)
         self.max_objects = 10
         self.is_debug = is_debug
@@ -110,18 +118,19 @@ class COCODataset(Dataset):
                 # labels = np.zeros(shape=(num_objs, 5), dtype=np.float64)
                 labels = []
                 for ix, obj in enumerate(objs):
-                    bbox = obj.find('bndbox')
-                    x1 = max(float(bbox.find('xmin').text), 1)  # - 1
-                    y1 = max(float(bbox.find('ymin').text), 1)  # - 1
-                    x2 = min(float(bbox.find('xmax').text), 1279)  # - 1
-                    y2 = min(float(bbox.find('ymax').text), 719)  # - 1
-                    cls = self._class_to_ind[obj.find('name').text.lower().strip()]
-                    label_ = [cls,((x1 + x2) / 2)/w,((y1 + y2) / 2) / h,(x2-x1)/w,(y2-y1)/h]
-                    # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
-                    #                  w / padded_w, h / padded_h]
-                    # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
-                    #                  w_new / padded_w, h_new / padded_h]
-                    labels.append(label_)
+                    if obj.find('difficult') is None or str(obj.find('difficult').text) == "0":
+                        bbox = obj.find('bndbox')
+                        x1 = max(float(bbox.find('xmin').text), 1)  # - 1
+                        y1 = max(float(bbox.find('ymin').text), 1)  # - 1
+                        x2 = min(float(bbox.find('xmax').text), 1279)  # - 1
+                        y2 = min(float(bbox.find('ymax').text), 719)  # - 1
+                        cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+                        label_ = [cls, ((x1 + x2) / 2) / w, ((y1 + y2) / 2) / h, (x2 - x1) / w, (y2 - y1) / h]
+                        # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
+                        #                  w / padded_w, h / padded_h]
+                        # labels[ix, :] = [cls, ((x1 + x2) / 2) / padded_w, ((y1 + y2) / 2) / padded_h,
+                        #                  w_new / padded_w, h_new / padded_h]
+                        labels.append(label_)
                 labels = np.asarray(labels)
             else:
                 logging.info("label does not exist: {}".format(label_path))

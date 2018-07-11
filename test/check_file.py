@@ -1,12 +1,12 @@
 import os
 import shutil
-path_xml = r'\\192.168.55.39\team-CV\dataset\tiny_data_0627\test\Annotations/'
-path_jpg = r'\\192.168.55.39\team-CV\dataset\tiny_data_0627\test\JPEGImages/'
+path_xml = r'\\192.168.55.39\team-CV\dataset\gen_source\json/'
+path_jpg = r'\\192.168.55.39\team-CV\dataset\gen_source\pic/'
 xmls = os.listdir(path_xml)
 jpgs = os.listdir(path_jpg)
 
-for img in jpgs:
-    print(img[:-4])
+# for img in jpgs:
+    # print(img[:-4])
 
 print(len(xmls))
 print(len(jpgs))
