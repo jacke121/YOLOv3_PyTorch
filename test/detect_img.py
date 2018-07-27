@@ -1,23 +1,12 @@
 # coding='utf-8'
 import os
-import sys
 import numpy as np
-import time
-import datetime
-import json
-import importlib
 import logging
 import shutil
 import cv2
-
-
 import torch
 import torch.nn as nn
-
 from tools import savexml
-
-MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 from nets.model_main import ModelMain
 from nets.yolo_loss import YOLOLayer
 from common.utils import non_max_suppression, bbox_iou
@@ -29,21 +18,21 @@ TRAINING_PARAMS = \
         "backbone_pretrained": "",
     },
     "yolo": {
-        "anchors": "15,22, 24,38, 25,64, 27,82, 39,58, 44,38, 62,77, 70,131, 78,233",
+        "anchors": "16,23, 23,38, 25,84, 29,66, 42,54, 47,37, 50,78, 61,119, 73,223",
         "classes": 1,
     },
     "batch_size": 1,
     "confidence_threshold": 0.8,
-    "classes_names_path": "../data/coco2cls.names",
     "iou_thres": 0.3,
-    "images_path":  r"\\192.168.55.38\Team-CV\cam2pick\camera_pic\sh_wuding\rec_pic/",
+    # "images_path":  r"\\192.168.55.38\Team-CV\cam2pick\camera_pic_0711\sh_wuding\rec_pic/",
+    "images_path":  r"\\192.168.55.38\Team-CV\cam2pick\camera_pic_0718\bj_bd003\rec_pic/",
     # "images_path":  r"\\192.168.25.20\SBDFileSharing\Team-CV\find_mouse\background\huaping\pic/",
     # "images_path":  r"E:\github\YOLOv3_PyTorch\evaluate\test_paste/",
     "img_h": 416,
     "img_w": 416,
     "parallels": [0],
     # "pretrain_snapshot": "../weights/yolov3_weights_pytorch.pth",
-    "pretrain_snapshot": r"\\192.168.55.73\Team-CV\checkpoints\0710\YOLOv3_Pytorch/16.weights",
+    "pretrain_snapshot": r"0.9007_0028.weights",
     # "pretrain_snapshot": r"E:\github\YOLOv3_PyTorch\evaluate/weights/56.weights",
     # "pretrain_snapshot": r"E:\github\YOLOv3_PyTorch\evaluate/weights/0.9296_0026.weights",
 }
@@ -92,7 +81,8 @@ def test(config):
         images = []
         images_origin = []
         for path in images_path[step*batch_size: (step+1)*batch_size]:
-            if path.endswith(".jpg")
+            if not path.endswith(".jpg") and (not path.endswith(".png")) and not path.endswith(".JPEG"):
+                continue
             logging.info("processing: {}".format(path))
             image = cv2.imread(os.path.join(config["images_path"], path), cv2.IMREAD_COLOR)
             if image is None:
@@ -120,12 +110,11 @@ def test(config):
                                                    conf_thres=config["confidence_threshold"])
 
         # write result images. Draw bounding boxes and labels of detections
-        classes = open(config["classes_names_path"], "r").read().split("\n")[:-1]
         for idx, detections in enumerate(batch_detections):
             # image_show =images_origin[idx]
             if detections is not None:
 
-                anno = savexml.GEN_Annotations(path + '.jpg')
+                anno = savexml.GEN_Annotations(path)
                 anno.set_size(1280, 720, 3)
 
                 unique_labels = detections[:, -1].cpu().unique()
@@ -139,12 +128,12 @@ def test(config):
                     y1 = (y1 / pre_h) * ori_h
                     x1 = (x1 / pre_w) * ori_w
                     # Create a Rectangle patch
-                    image_show = cv2.rectangle(images_origin[idx], (x1, y1), (x1 + box_w, y1 + box_h), (0, 255, 0), 1)
-                    anno.add_pic_attr("mouse", x1, y1, box_w, box_h,"0")
+                    # image_show = cv2.rectangle(images_origin[idx], (x1, y1), (x1 + box_w, y1 + box_h), (0, 255, 0), 1)
+                    anno.add_pic_attr("mouse", int(x1.cpu().data), int(y1.cpu().data), int(box_w.cpu().data) , int(box_h.cpu().data) ,"0")
 
                 print("output/"+str(step)+".jpg")
                 anno.savefile("Annotations/"+ path[:-4] + '.xml')
-                cv2.imwrite("output/"+os.path.basename(path),image_show)
+                # cv2.imwrite("output/"+os.path.basename(path),images_origin[idx])
             # cv2.imshow('1', image_show)
             # cv2.waitKey()
     logging.info("Save all results to ./output/")

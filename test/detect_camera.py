@@ -58,7 +58,6 @@ class BoundBox:
 
 def draw_boxes(image, boxes, labels):
     for box in boxes:
-
         cv2.rectangle(image, (box.xmin, box.ymin), (box.xmax, box.ymax), (0, 255, 0), 2)
         image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(image)

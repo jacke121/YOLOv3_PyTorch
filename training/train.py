@@ -19,12 +19,50 @@ import torch.nn.functional as F
 MY_DIRNAME = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(MY_DIRNAME, '..'))
 # sys.path.insert(0, os.path.join(MY_DIRNAME, '..', 'evaluate'))
-from nets.model_main import ModelMain
+from nets.model_main_cc import ModelMain
 from nets.yolo_loss import YOLOLayer
 from common.coco_dataset import COCODataset
 
 checkpoint_dir="checkpoints"
 os.makedirs(checkpoint_dir, exist_ok=True)
+
+TRAINING_PARAMS = \
+{
+    "model_params": {
+        "backbone_name": "darknet_53",
+        "backbone_pretrained":"", #  set empty to disable
+        # "backbone_pretrained":"../weights/darknet53_weights_pytorch.pth", #  set empty to disable
+    },
+    "yolo": {
+        "anchors": "16,24, 23,39, 25,84, 31,66, 42,54, 46,38, 56,81, 59,121, 74,236",
+        "classes": 1,
+    },
+    "lr": {
+        "backbone_lr": 0.02,
+        "other_lr": 0.02,
+        "freeze_backbone": False,   #  freeze backbone wegiths to finetune
+        "decay_gamma": 0.4,
+        "decay_step": 10,           #  decay lr in every ? epochs
+    },
+    "optimizer": {
+        "type": "adam",
+        "weight_decay": 4e-05,
+    },
+    "batch_size": 10,
+    # "train_path": "../data/coco/trainvalno5k.txt",
+    "train_path": r"\\192.168.55.39\team-CV\dataset\origin_all_datas\all_scenes",
+    "epochs": 2001,
+    "img_h": 416,
+    "img_w": 416,
+    # "parallels": [0,1,2,3],                         #  config GPU device
+    "parallels": [0],                         #  config GPU device
+    "working_dir": "YOUR_WORKING_DIR",              #  replace with your working dir
+    "pretrain_snapshot": "",                        #  load checkpoint
+    "evaluate_type": "",
+    "try": 0,
+    "export_onnx": False,
+}
+
 def train(config):
     config["global_step"] = config.get("start_step", 0)
     is_training = False if config.get("export_onnx") else True
@@ -66,7 +104,7 @@ def train(config):
     # DataLoader
     dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
                                                          (config["img_w"], config["img_h"]),
-                                                         is_training=True,is_scene=False),
+                                                         is_training=True,is_scene=True),
                                              batch_size=config["batch_size"],
                                              shuffle=True,drop_last=True, num_workers=0, pin_memory=True)
 
@@ -100,7 +138,7 @@ def train(config):
                 # lr = optimizer.param_groups[0]['lr']
 
                 strftime = datetime.datetime.now().strftime("%H:%M:%S")
-                if (losses[7] / 3 > recall / (step+1)) or mini_batch == 5:
+                if (losses[7] / 3 >= recall / (step+1)) or mini_batch == 5:
                     recall += losses[7] / 3
                     print(
                         '%s [Epoch %d/%d,batch %03d/%d loss:x %.5f,y %.5f,w %.5f,h %.5f,conf %.5f,cls %.5f,total %.5f,rec %.3f,avrec %.3f %d]' %
@@ -168,11 +206,8 @@ if __name__ == "__main__":
                         format="[%(asctime)s %(filename)s] %(message)s")
 
 
-    params_path = 'params.py'
-    if not os.path.isfile(params_path):
-        logging.error("no params file found! path: {}".format(params_path))
-        sys.exit()
-    config = importlib.import_module(params_path[:-3]).TRAINING_PARAMS
+
+    config = TRAINING_PARAMS
     config["batch_size"] *= len(config["parallels"])
 
     # Create sub_working_dir

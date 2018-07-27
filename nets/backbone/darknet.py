@@ -3,28 +3,33 @@ import torch.nn as nn
 import math
 from collections import OrderedDict
 
+# from nets.coordConv import CoordConv
+
 __all__ = ['darknet21', 'darknet53']
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, inplanes, planes):
+    def __init__(self, inplanes, planes,dim):
         super(BasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes[0], kernel_size=1,
-                               stride=1, padding=0, bias=False)
+
+        self.conv1 = nn.Conv2d(inplanes, planes[0], kernel_size=1,stride=1, padding=0, bias=False)
+        # self.conv1 =CoordConv(dim,dim,False,inplanes+2, planes[0], kernel_size=1,stride=1, padding=0, bias=False)
+
+
         self.bn1 = nn.BatchNorm2d(planes[0])
         self.relu1 = nn.LeakyReLU(0.1)
-        self.conv2 = nn.Conv2d(planes[0], planes[1], kernel_size=3,
-                               stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(planes[0], planes[1], kernel_size=3,stride=1, padding=1, bias=False)
+        # self.conv2 = CoordConv(planes[0], planes[1], kernel_size=3,stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes[1])
         self.relu2 = nn.LeakyReLU(0.1)
 
     def forward(self, x):
         residual = x
-
+        # out = self.coordv1(x)
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu1(out)
-
+        # out = self.coordv2(out)
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu2(out)
@@ -37,15 +42,18 @@ class DarkNet(nn.Module):
     def __init__(self, layers):
         super(DarkNet, self).__init__()
         self.inplanes = 32
+
+        # self.coordv1=CoordXY(self.inplanes)
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
+        # self.conv1 =CoordConv(3,self.inplanes, kernel_size=3,stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(self.inplanes)
         self.relu1 = nn.LeakyReLU(0.1)
 
-        self.layer1 = self._make_layer([32, 64], layers[0])
-        self.layer2 = self._make_layer([64, 128], layers[1])
-        self.layer3 = self._make_layer([128, 256], layers[2])
-        self.layer4 = self._make_layer([256, 512], layers[3])
-        self.layer5 = self._make_layer([512, 1024], layers[4])
+        self.layer1 = self._make_layer([32, 64], layers[0],0)
+        self.layer2 = self._make_layer([64, 128], layers[1],1)
+        self.layer3 = self._make_layer([128, 256], layers[2],2)
+        self.layer4 = self._make_layer([256, 512], layers[3],3)
+        self.layer5 = self._make_layer([512, 1024], layers[4],4)
 
         self.layers_out_filters = [64, 128, 256, 512, 1024]
 
@@ -53,21 +61,36 @@ class DarkNet(nn.Module):
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
+            # if isinstance(m, CoordConv):
+            #     n = m.conv.kernel_size[0] * m.conv.kernel_size[1] * m.conv.out_channels
+            #     m.conv.weight.data.normal_(0, math.sqrt(2. / n))
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-    def _make_layer(self, planes, blocks):
+    def _make_layer(self, planes, blocks,layer_num):
         layers = []
+
+        dim=208
+        if layer_num==0:
+            dim=416
+        elif layer_num==1:
+            dim=208
+        elif layer_num == 2:
+            dim = 104
+        elif layer_num == 3:
+            dim = 52
+        elif layer_num == 4:
+            dim = 26
         #  downsample
-        layers.append(("ds_conv", nn.Conv2d(self.inplanes, planes[1], kernel_size=3,
-                                stride=2, padding=1, bias=False)))
+        layers.append(("ds_conv", nn.Conv2d(self.inplanes, planes[1], kernel_size=3,stride=2, padding=1, bias=False)))
+        # layers.append(("ds_conv",CoordConv(dim,self.inplanes, planes[1], kernel_size=3,stride=2, padding=1, bias=False)))
         layers.append(("ds_bn", nn.BatchNorm2d(planes[1])))
         layers.append(("ds_relu", nn.LeakyReLU(0.1)))
         #  blocks
         self.inplanes = planes[1]
         for i in range(0, blocks):
-            layers.append(("residual_{}".format(i), BasicBlock(self.inplanes, planes)))
+            layers.append(("residual_{}".format(i), BasicBlock(self.inplanes, planes,dim//2)))
         return nn.Sequential(OrderedDict(layers))
 
     def forward(self, x):

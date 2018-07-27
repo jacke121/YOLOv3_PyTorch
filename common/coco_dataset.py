@@ -60,7 +60,7 @@ class MyThread(threading.Thread):
               self.listDataset.img_d[index] = sample
       print("data_load ok")
 class COCODataset(Dataset):
-    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=10000,is_scene=False):
+    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=1000,is_scene=False):
         list_path_txt = os.path.join(list_path,'ImageSets\Main/trainval.txt')
         if not is_training:
             list_path_txt = os.path.join(list_path, 'ImageSets\Main/test.txt')
@@ -74,11 +74,15 @@ class COCODataset(Dataset):
         self.label_files = [os.path.join(list_path, 'Annotations', '%s.xml' % train_file.strip('\n')) for train_file in
                                 self.train_files_]
         if is_scene:
-            self.img_files = [list_path + '%s.jpg' % train_file.strip('\n').replace('Annotations', 'JPEGImages') for
-                              train_file in
-                              self.train_files_]
-            self.label_files = [list_path + '%s.xml' % train_file.strip('\n') for train_file in
-                                self.train_files_]
+            all_files = [list(map(lambda x: os.path.join(root, x), files)) for root, _, files in
+                         os.walk(list_path, topdown=False) if os.path.basename(root) == 'Annotations']
+            self.label_files = []
+            for i in range(len(all_files)):
+                self.label_files += all_files[i]
+            if len(self.label_files) > data_size:
+                self.label_files = self.label_files[:data_size]
+            self.img_files = [file.replace('Annotations', 'JPEGImages').replace('xml', 'jpg') for file in
+                              self.label_files]
 
         self.img_size = img_size  # (w, h)
         self.max_objects = 10

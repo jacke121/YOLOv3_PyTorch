@@ -141,8 +141,8 @@ def get_anchor(config,num_anchors,org_path):
 
 if __name__ == '__main__':
 
-    num_anchors = 8
-    org_path = r'\\192.168.55.39\team-CV\dataset\origin_all_datas\all_scenes'
+    num_anchors = 5
+    org_path = r'\\192.168.55.73\Team-CV\dataset\origin_all_datas\_2train'
 
     vocpath = r''
     pkl_name="wuding_yy.pkl"

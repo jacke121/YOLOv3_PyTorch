@@ -83,7 +83,7 @@ def evaluate(config):
     time_inter = 10
     dataloader = torch.utils.data.DataLoader(COCODataset(config["train_path"],
                                                          (config["img_w"], config["img_h"]),
-                                                         is_training=False),
+                                                         is_training=False,is_scene=True),
                                              batch_size=config["batch_size"],
                                              shuffle=False, num_workers=0, pin_memory=False,drop_last = True)  # DataLoader
     net, yolo_losses = build_yolov3(config)
@@ -138,13 +138,16 @@ def evaluate(config):
                 with torch.no_grad():
                     time1=datetime.datetime.now()
                     outputs = net(images)
-                    print("time1",(datetime.datetime.now()-time1).microseconds)
+                    if ((datetime.datetime.now() - time1).seconds > 5):
+                        logging.info('Batch %d time is too long ' % (step))
+                        n_gt=1
+                        break
                     output_list = []
                     for i in range(3):
                         output_list.append(yolo_losses[i](outputs[i]))
                     output = torch.cat(output_list, 1)
                     output = non_max_suppression(output, 1, conf_thres=0.8)
-                    print("time2", (datetime.datetime.now() - time1).microseconds)
+                    # print("time2", (datetime.datetime.now() - time1).seconds*1000+(datetime.datetime.now() - time1).microseconds//1000)
                     #  calculate
                     for sample_i in range(labels.size(0)):
                         # Get labels for sample where width is not zero (dummies)
@@ -177,11 +180,9 @@ def evaluate(config):
 
 def main():
     logging.basicConfig(level=logging.DEBUG,
-                        format="[%(asctime)s %(filename)s] %(message)s")
-
-    config =TRAINING_PARAMS
+                        format="%(asctime)s %(message)s")
+    config = TRAINING_PARAMS
     config["batch_size"] *= len(config["parallels"])
-
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, config["parallels"]))
     evaluate(config)
 
