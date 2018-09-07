@@ -101,6 +101,7 @@ def test(config):
         images = torch.from_numpy(images).cuda()
         # inference
         with torch.no_grad():
+            time1=datetime.datetime.now()
             outputs = net(images)
             output_list = []
             for i in range(3):
@@ -108,6 +109,7 @@ def test(config):
             output = torch.cat(output_list, 1)
             batch_detections = non_max_suppression(output, config["yolo"]["classes"],
                                                    conf_thres=config["confidence_threshold"])
+            print("time",(datetime.datetime.now()-time1).microseconds)
 
         # write result images. Draw bounding boxes and labels of detections
         for idx, detections in enumerate(batch_detections):

@@ -131,7 +131,7 @@ def parse_voc_annotation(ann_dir, img_dir, cache_name, labels=[]):
 
     return all_insts, seen_labels
 
-def parse_voc_annotation(ann_dir, img_dir, cache_name, labels=[],org_path=None):
+def parse_voc_annotation_new(labels=[],org_path=None):
     # if os.path.exists(cache_name):
     #     with open(cache_name, 'rb') as handle:
     #         cache = pickle.load(handle)
@@ -151,7 +151,7 @@ def parse_voc_annotation(ann_dir, img_dir, cache_name, labels=[],org_path=None):
         print(len(xml_files))
         for xml_file in sorted(xml_files):
             img = {'object':[]}
-            print("------",xml_file)
+            # print("------",xml_file)
 
             tree = ET.parse(xml_file)
             root = tree.getroot()

@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 from collections import OrderedDict
 
+# from nets.coordConv import AddCoords
+from nets import mobilenet
+from nets.shufflenet_yolo import ShuffleNetV2
 from .backbone import backbone_fn
 
 
@@ -12,8 +15,11 @@ class ModelMain(nn.Module):
         self.training = is_training
         self.model_params = config["model_params"]
         #  backbone
-        _backbone_fn = backbone_fn[self.model_params["backbone_name"]]
-        self.backbone = _backbone_fn(self.model_params["backbone_pretrained"])
+        # _backbone_fn = backbone_fn[self.model_params["backbone_name"]]
+        # self.backbone = _backbone_fn(self.model_params["backbone_pretrained"])
+        # self.backbone = mobilenet.mobilenetv2(self.model_params["backbone_pretrained"])
+        self.backbone = ShuffleNetV2(scale=1, in_channels=3, c_tag=0.5, num_classes=2, activation=nn.ReLU,
+                                     SE=False, residual=False)
         _out_filters = self.backbone.layers_out_filters
         #  embedding0
         final_out_filter0 = len(config["yolo"]["anchors"][0]) * (5 + config["yolo"]["classes"])
@@ -59,7 +65,7 @@ class ModelMain(nn.Module):
                     out_branch = _in
             return _in, out_branch
         #  backbone
-        x2, x1, x0 = self.backbone(x)
+        x2, x1, x0 = self.backbone(x.cuda())
         #  yolo branch 0
         out0, out0_branch = _branch(self.embedding0, x0)
         #  yolo branch 1

@@ -1,7 +1,7 @@
 import random
 import numpy as np
 
-from voc import parse_voc_annotation
+from tools.voc import parse_voc_annotation
 import json
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import cdist
@@ -117,13 +117,12 @@ def run_kmeans(ann_dims, num_anchors):
     print(max(cha), a_v, index)
 
 
-def get_anchor(config,num_anchors,org_path):
+def get_anchor(config,num_anchors):
     train_imgs, train_labels = parse_voc_annotation(
         config['train']['train_annot_folder'],
         config['train']['train_image_folder'],
         config['train']['cache_name'],
-        config['model']['labels'],
-        org_path=org_path
+        config['model']['labels']
     )
     # run k_mean to find the anchors
     annotation_dims = []
@@ -141,11 +140,9 @@ def get_anchor(config,num_anchors,org_path):
 
 if __name__ == '__main__':
 
-    num_anchors = 5
-    org_path = r'\\192.168.55.73\Team-CV\dataset\origin_all_datas\_2train'
-
-    vocpath = r''
-    pkl_name="wuding_yy.pkl"
+    num_anchors = 8
+    vocpath = r'\\192.168.55.39\team-CV\dataset\tiny_data_0627\train\Original/'
+    pkl_name="Original_train.pkl"
     config = {}
     config['train'] = {}
     config['model'] = {}
@@ -154,4 +151,20 @@ if __name__ == '__main__':
     config['train']['cache_name'] = pkl_name
     config['model']['labels'] = "mouse"
 
-    get_anchor(config,num_anchors,org_path)
+    get_anchor(config,num_anchors)
+    '''
+6 0.023571154412013316
+new 19,29, 26,81, 36,60, 45,41, 60,102, 74,228
+7 0.021015908736880976
+new 17,24, 23,40, 26,81, 38,62, 46,40, 60,103, 74,228
+8 0.01948809633285192
+new 16,24, 23,39, 25,85, 31,67, 43,55, 46,38, 61,102, 74,228
+9 0.018829769725668605
+new 16,24, 23,39, 25,84, 31,66, 42,54, 46,38, 56,81, 59,121, 74,236
+10 0.017862497823133056
+new 16,23, 23,36, 24,56, 25,85, 34,70, 43,54, 46,38, 59,124, 59,83, 70,240
+11 0.01715094795996884
+new 16,23, 23,37, 23,80, 25,56, 32,96, 36,68, 44,52, 46,37, 62,83, 70,240, 71,130
+12 0.016480189858413853
+new 16,23, 16,37, 23,80, 26,56, 28,35, 32,96, 36,68, 44,52, 47,37, 62,82, 70,240, 71,130
+    '''

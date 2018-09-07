@@ -23,23 +23,22 @@ from common.utils import non_max_suppression, bbox_iou
 TRAINING_PARAMS = \
 {
     "model_params": {
-        "backbone_name": "darknet_53",
+        "backbone_name": "darknet_21",
         "backbone_pretrained": "",
     },
     "yolo": {
-        "anchors": "15,22, 24,38, 25,64, 27,82, 39,58, 44,38, 62,77, 70,131, 78,233",
+        "anchors": "16,24, 23,39, 25,84, 31,66, 42,54, 46,38, 56,81, 59,121, 74,236",
         "classes": 1,
     },
-    "batch_size": 16,
-    "iou_thres": 0.5,
-    "train_path": r"\\192.168.55.39\team-CV\dataset\wuding_yy",
+    "batch_size": 100,
+    "iou_thres": 0.3,
+    "train_path": r"\\192.168.55.73\team-CV\dataset\origin_all_datas\_2test",
     # "train_path": r"\\192.168.55.39\team-CV\dataset\original_07062",
-    "img_h": 416,
-    "img_w": 416,
+    "img_h": 352,
+    "img_w": 352,
     "parallels": [0],
-    # "pretrain_snapshot": "../weights/yolov3_weights_pytorch.pth",
-    "pretrain_snapshot": "",
-    # "pretrain_snapshot": r"C:\Users\sbdya\Desktop\tmp/140.weights",
+    "pretrain_snapshot": r"F:\Team-CV\checkpoints\shuffle_v2/0.9830_0791.weights",
+    # "pretrain_snapshot": "",
 }
 def build_yolov3(config):
     is_training = False
@@ -76,7 +75,7 @@ def write_ini(ini_name,accuracy,error_list):
     _conf_file.write(open(ini_name, 'w'))
 def evaluate(config):
     # checkpoint_paths = {'58': r'\\192.168.25.58\Team-CV\checkpoints\torch_yolov3'}
-    checkpoint_paths = {'39': r'\\192.168.55.39\team-CV\dataset\yolov3_torch/'}
+    checkpoint_paths = {'39': r'F:\Team-CV\checkpoints\shuffle_v2/'}
     # checkpoint_paths = {'68': r'E:\github\YOLOv3_PyTorch\evaluate\weights'}
     post_weights = {k: 0 for k in checkpoint_paths.keys()}
     weight_index = {k: 0 for k in checkpoint_paths.keys()}
@@ -92,7 +91,7 @@ def evaluate(config):
             os.makedirs(checkpoint_path + '/result', exist_ok=True)
             checkpoint_weights = os.listdir(checkpoint_path)
             checkpoint_result = os.listdir(checkpoint_path + '/result')
-            checkpoint_result = [cweight.split("_")[1][:-4] for cweight in checkpoint_result if cweight.endswith('ini')]
+            checkpoint_result = [cweight.split("_")[2][:-4] for cweight in checkpoint_result if cweight.endswith('ini')]
             checkpoint_weights =[cweight for cweight in checkpoint_weights if cweight.endswith('weights')]
 
             if weight_index[key]>=len(checkpoint_weights):
@@ -138,16 +137,17 @@ def evaluate(config):
                 with torch.no_grad():
                     time1=datetime.datetime.now()
                     outputs = net(images)
-                    if ((datetime.datetime.now() - time1).seconds > 5):
-                        logging.info('Batch %d time is too long ' % (step))
-                        n_gt=1
-                        break
+
                     output_list = []
                     for i in range(3):
                         output_list.append(yolo_losses[i](outputs[i]))
                     output = torch.cat(output_list, 1)
-                    output = non_max_suppression(output, 1, conf_thres=0.8)
-                    # print("time2", (datetime.datetime.now() - time1).seconds*1000+(datetime.datetime.now() - time1).microseconds//1000)
+                    output = non_max_suppression(output, 1, conf_thres=0.5)
+                    if ((datetime.datetime.now() - time1).seconds > 5):
+                        logging.info('Batch %d time is too long ' % (step))
+                        n_gt=1
+                        break
+                    print("time2", (datetime.datetime.now() - time1).seconds*1000+(datetime.datetime.now() - time1).microseconds//1000)
                     #  calculate
                     for sample_i in range(labels.size(0)):
                         # Get labels for sample where width is not zero (dummies)
@@ -161,7 +161,7 @@ def evaluate(config):
                             sample_pred = output[sample_i]
                             if sample_pred is not None:
                                 # Iterate through predictions where the class predicted is same as gt
-                                for x1, y1, x2, y2, conf, obj_conf, obj_pred in sample_pred[sample_pred[:, 6] == obj_cls]:
+                                for x1, y1, x2, y2, conf, obj_conf, obj_pred in sample_pred[sample_pred[:, 6] == obj_cls.cuda()]:
                                     box_pred = torch.cat([coord.unsqueeze(0) for coord in [x1, y1, x2, y2]]).view(1, -1)
                                     iou = bbox_iou(box_pred, box_gt)
                                     if iou >= config["iou_thres"]:
@@ -170,17 +170,21 @@ def evaluate(config):
                                     else:
                                         if image_paths[sample_i] not in imagepath_list:
                                             imagepath_list.append(image_paths[sample_i])
+                            else:
+                                if image_paths[sample_i] not in imagepath_list:
+                                    imagepath_list.append(image_paths[sample_i])
                 if n_gt:
-                    logging.info('Batch [%d/%d] mAP: %.5f' % (step, len(dataloader), float(correct / n_gt)))
+                    logging.info('Batch [%d/%d] err_count:%d mAP: %.5f' % (step, len(dataloader), len(imagepath_list),float(correct / n_gt)))
 
             logging.info('Mean Average Precision: %.5f' % float(correct / n_gt))
             Mean_Average = float(correct / n_gt)
-            ini_name = os.path.join(checkpoint_path+'/result/', '%.4f_%s.ini'%(float(correct / n_gt),post_weights[key].split('.')[1].split("_")[1]))
+            ini_name = os.path.join(checkpoint_path+'/result/', '%.4f_%s.ini'%((float(post_weights[key].split("_")[0])+float(correct / n_gt))/2,post_weights[key].replace(".weights","")))
             write_ini(ini_name, Mean_Average, imagepath_list)
+            break
 
 def main():
     logging.basicConfig(level=logging.DEBUG,
-                        format="%(asctime)s %(message)s")
+                        format="%(asctime)s %(message)s",datefmt='[%H:%M:%S]')
     config = TRAINING_PARAMS
     config["batch_size"] *= len(config["parallels"])
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, config["parallels"]))

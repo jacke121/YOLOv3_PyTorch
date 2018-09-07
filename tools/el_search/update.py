@@ -72,7 +72,6 @@ if __name__ == '__main__':
               print("update 成功")
           else:
              print("update 失败")
-          # query(d_list[1])
           continue
       if len(d_list)==4:
           if d_list[3]=="-2":
@@ -99,7 +98,6 @@ if __name__ == '__main__':
                   print("update 成功")
               else:
                   print(print("update 失败"))
-              query(d_list[1])
           with open(text_name, "w") as f_txt:
             lines[index] = ' '.join(d_list) + "\n"
             f_txt.writelines(lines)
@@ -118,7 +116,6 @@ if __name__ == '__main__':
               print("update 成功")
           else:
             print(print("update 失败"))
-          # query(d_list[1])
           index+=1
 
 

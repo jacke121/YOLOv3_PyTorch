@@ -60,29 +60,34 @@ class MyThread(threading.Thread):
               self.listDataset.img_d[index] = sample
       print("data_load ok")
 class COCODataset(Dataset):
-    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=1000,is_scene=False):
-        list_path_txt = os.path.join(list_path,'ImageSets\Main/trainval.txt')
-        if not is_training:
-            list_path_txt = os.path.join(list_path, 'ImageSets\Main/test.txt')
-        with open(list_path_txt, 'r') as file:
-        # with open(list_path, 'r') as file:
-            self.train_files_ = file.readlines()
-        if len(self.train_files_) > data_size:
-            self.train_files_ = self.train_files_[:data_size]
-        self.img_files = [os.path.join(list_path, 'JPEGImages', '%s.jpg' % train_file.strip('\n')) for train_file in
-                              self.train_files_]
-        self.label_files = [os.path.join(list_path, 'Annotations', '%s.xml' % train_file.strip('\n')) for train_file in
-                                self.train_files_]
+    def __init__(self, list_path, img_size, is_training, is_debug=False,data_size=4000,is_scene=False):
+
         if is_scene:
             all_files = [list(map(lambda x: os.path.join(root, x), files)) for root, _, files in
                          os.walk(list_path, topdown=False) if os.path.basename(root) == 'Annotations']
             self.label_files = []
             for i in range(len(all_files)):
                 self.label_files += all_files[i]
-            if len(self.label_files) > data_size:
-                self.label_files = self.label_files[:data_size]
+            if len(self.label_files)>data_size:
+                self.label_files=self.label_files[:data_size]
             self.img_files = [file.replace('Annotations', 'JPEGImages').replace('xml', 'jpg') for file in
                               self.label_files]
+        else:
+            list_path_txt = os.path.join(list_path, 'ImageSets\Main/trainval.txt')
+            if not is_training:
+                list_path_txt = os.path.join(list_path, 'ImageSets\Main/test.txt')
+            with open(list_path_txt, 'r') as file:
+                # with open(list_path, 'r') as file:
+                self.train_files_ = file.readlines()
+            if len(self.train_files_) > data_size:
+                self.train_files_ = self.train_files_[:data_size]
+            if len(self.label_files) > data_size:
+                self.label_files = self.label_files[:data_size]
+            self.img_files = [os.path.join(list_path, 'JPEGImages', '%s.jpg' % train_file.strip('\n')) for train_file in
+                              self.train_files_]
+            self.label_files = [os.path.join(list_path, 'Annotations', '%s.xml' % train_file.strip('\n')) for train_file
+                                in
+                                self.train_files_]
 
         self.img_size = img_size  # (w, h)
         self.max_objects = 10
@@ -153,6 +158,9 @@ class COCODataset(Dataset):
 
 #  use for test dataloader
 if __name__ == "__main__":
+
+    tree = ET.parse(r"\\192.168.55.73\Team-CV\dataset\original_0706\Annotations\09981.xml")
+    objs = tree.findall('object')
     dataloader = torch.utils.data.DataLoader(COCODataset(r"D:\data\tiny_data\VOC2007",
                                                          (416, 416),is_training=True, is_debug=True),
                                              batch_size=16,
@@ -174,3 +182,4 @@ if __name__ == "__main__":
             # cv2.imwrite("step{}_{}.jpg".format(step, i), image)
         # only one batch
         # break
+

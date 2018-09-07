@@ -1,30 +1,43 @@
 
 
 
-import numpy as np
-import cv2
 
-import os
-# cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 
-from matplotlib import pyplot as plt
+import torch
 
-img = cv2.imread('2.jpg')
-height, width = img.shape[:2]
-mask = np.zeros(img.shape[:2],np.uint8)
-# 背景模型
-bgdModel = np.zeros((1,65),np.float64)
-# 前景模型
-fgdModel = np.zeros((1,65),np.float64)
+import torch.nn as nn
 
-rect = (10, 10, width - 30, height - 30)
-# 使用grabCut算法
-cv2.grabCut(img,mask,rect,bgdModel,fgdModel,5,cv2.GC_INIT_WITH_RECT)
-
-mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
-img = img*mask2[:,:,np.newaxis]
-
-cv2.imshow('image', img)
-k = cv2.waitKey(0)
-#下面这种也能显示
-plt.imshow(img),plt.colorbar(),plt.show()
+m = nn.BatchNorm2d(2,affine=True) #权重w和偏重将被使用
+input = torch.randn(1,2,3)
+print(input)
+input = torch.randn(2,2,3)
+print(input)
+# output = m(input)
+#
+#
+# print("归一化权重：")
+# print(m.weight)
+# print("归一化的偏重：")
+# print(m.bias)
+#
+# print("归一化的输出：")
+# print(output)
+# print("输出的尺度：")
+# print(output.size())
+#
+# # i = torch.randn(1,1,2)
+# print("输入的第一个维度：")
+# print(input[0][0])
+# firstDimenMean = torch.Tensor.mean(input[0][0])
+# firstDimenVar= torch.Tensor.var(input[0][0],False) #Bessel's Correction贝塞尔校正不会被使用
+#
+# print(m.eps)
+# print("输入的第一个维度平均值：")
+# print(firstDimenMean)
+# print("输入的第一个维度方差：")
+# print(firstDimenVar)
+#
+# bacthnormone = \
+#     ((input[0][0][0][0] - firstDimenMean)/(torch.pow(firstDimenVar+m.eps,0.5) ))\
+#                * m.weight[0] + m.bias[0]
+# print(bacthnormone)

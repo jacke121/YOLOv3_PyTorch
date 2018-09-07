@@ -1,3 +1,4 @@
+import time
 import torch
 import torch.nn as nn
 import math
@@ -5,31 +6,22 @@ from collections import OrderedDict
 
 # from nets.coordConv import CoordConv
 
-__all__ = ['darknet21', 'darknet53']
-
-
 class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes,dim):
         super(BasicBlock, self).__init__()
 
         self.conv1 = nn.Conv2d(inplanes, planes[0], kernel_size=1,stride=1, padding=0, bias=False)
-        # self.conv1 =CoordConv(dim,dim,False,inplanes+2, planes[0], kernel_size=1,stride=1, padding=0, bias=False)
-
-
         self.bn1 = nn.BatchNorm2d(planes[0])
         self.relu1 = nn.LeakyReLU(0.1)
         self.conv2 = nn.Conv2d(planes[0], planes[1], kernel_size=3,stride=1, padding=1, bias=False)
-        # self.conv2 = CoordConv(planes[0], planes[1], kernel_size=3,stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes[1])
         self.relu2 = nn.LeakyReLU(0.1)
 
     def forward(self, x):
         residual = x
-        # out = self.coordv1(x)
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu1(out)
-        # out = self.coordv2(out)
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu2(out)
@@ -42,10 +34,7 @@ class DarkNet(nn.Module):
     def __init__(self, layers):
         super(DarkNet, self).__init__()
         self.inplanes = 32
-
-        # self.coordv1=CoordXY(self.inplanes)
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
-        # self.conv1 =CoordConv(3,self.inplanes, kernel_size=3,stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(self.inplanes)
         self.relu1 = nn.LeakyReLU(0.1)
 
@@ -127,3 +116,16 @@ def darknet53(pretrained, **kwargs):
         else:
             raise Exception("darknet request a pretrained path. got [{}]".format(pretrained))
     return model
+
+if __name__ == '__main__':
+    model = DarkNet([1, 2, 8, 8, 4])
+    model.eval()
+
+    for i in range(2):
+        t1 = time.time()
+        x = torch.rand(1, 3, 352, 352)
+        out3 = model(x)
+        for out in out3:
+            print(out.shape)
+        cnt = time.time() - t1
+        print(cnt)

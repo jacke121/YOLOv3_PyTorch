@@ -5,7 +5,6 @@ import math
 
 from common.utils import bbox_iou
 
-
 class YOLOLayer(nn.Module):
     def __init__(self, batch_size,layer_num, anchors, num_classes, img_size):
         super(YOLOLayer, self).__init__()
@@ -15,25 +14,25 @@ class YOLOLayer(nn.Module):
         self.bbox_attrs = 5 + num_classes
         self.img_size = img_size
 
-        self.ignore_threshold = 0.5
-        self.lambda_xy = 2.5
-        self.lambda_wh = 2.5
-        self.lambda_conf = 1.0
-        self.lambda_cls = 1.0
+        self.ignore_threshold = 0.9
+        self.lambda_xy = 4
+        self.lambda_wh = 4
+        self.lambda_conf = 4
+        self.lambda_cls = 2
 
         cuda = True if torch.cuda.is_available() else False
         self.FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
         self.LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
-        g_dim = 13
+        g_dim = 11
         bs = batch_size
-        x = [batch_size, 3, 13, 13]
+        x = [batch_size, 3, g_dim, g_dim]
         if layer_num == 1:
-            g_dim = 26
-            x = [batch_size, 3, 26, 26]
+            g_dim *=2
+            x = [batch_size, 3, g_dim, g_dim]
 
         elif layer_num == 2:
-            g_dim = 52
-            x = [batch_size, 3, 52, 52]
+            g_dim *= 4
+            x = [batch_size, 3, g_dim, g_dim]
 
         self.grid_x = torch.linspace(0, g_dim - 1, g_dim).repeat(g_dim, 1).repeat(bs * self.num_anchors, 1, 1).view(x).type(self.FloatTensor)
         self.grid_y = torch.linspace(0, g_dim - 1, g_dim).repeat(g_dim, 1).t().repeat(bs * self.num_anchors, 1, 1).view(
@@ -159,9 +158,18 @@ class YOLOLayer(nn.Module):
                 # Calculate iou between gt and anchor shapes
                 anch_ious = bbox_iou(gt_box, anchor_shapes)
                 # Where the overlap is larger than threshold set mask to zero (ignore)
-                self.noobj_mask[b, anch_ious > ignore_threshold] = 0
+                self.noobj_mask[b, anch_ious > ignore_threshold, gj, gi] = 0
                 # Find the best matching anchor box
                 best_n = np.argmax(anch_ious)
+
+                if gi >= pred_boxes.shape[3]:
+                    print(pred_boxes.shape, b, best_n, gj, gi)
+                    gi = pred_boxes.shape[3] - 1
+
+                if gj >= pred_boxes.shape[2]:
+                    print(pred_boxes.shape, b, best_n, gj, gi)
+                    gj = pred_boxes.shape[2] - 1
+
                 gt_box = torch.FloatTensor(np.array([gx, gy, gw, gh])).unsqueeze(0)
                 pred_box = pred_boxes[b, best_n, gj, gi].unsqueeze(0)
                 # Masks
